@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.db import schemas
+from ..db import schemas
 
 
 router = APIRouter(

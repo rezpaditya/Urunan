@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from backend.db import models, schemas
-from backend.db.database import engine
-from backend.router import trips, transactions
+from .db import models
+from .db.database import engine
+from .router import trips, transactions
 
 
 models.Base.metadata.create_all(bind=engine)
