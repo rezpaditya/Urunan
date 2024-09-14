@@ -40,7 +40,7 @@ def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/", response_model=schemas.Trip)
-def create_trip(trip: schemas.Trip, db: Session = Depends(get_db)):
+def update_trip(trip: schemas.Trip, db: Session = Depends(get_db)):
     db_trip = crud.update(db=db, dao=models.Trip, schema=trip)
     if db_trip:
         return db_trip

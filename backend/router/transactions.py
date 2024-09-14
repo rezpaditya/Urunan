@@ -1,5 +1,7 @@
-from fastapi import APIRouter
-from ..db import schemas
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from ..db import schemas, models, crud
+from ..dependency import get_db
 
 
 router = APIRouter(
@@ -9,26 +11,28 @@ router = APIRouter(
 )
 
 
-@router.get("/{trip_id}")
-async def get_all_transactions(trip_id):
-    return {"message": f"I see all transaction of trip: {trip_id}"}
+@router.get("/", response_model=list[schemas.Transaction])
+def get_all_transactions(db: Session = Depends(get_db)):
+    return crud.get(db, dao=models.Transaction)
+    # TODO: handle exception
 
 
-@router.get("/{trip_id}/{transaction_id}")
-async def get_transaction(trip_id, transaction_id):
-    return {"message": f"I see transaction with id: {transaction_id} and trip id: {trip_id}"}
+@router.get("/{id}")
+def get_transaction(id, db: Session = Depends(get_db)):
+    return crud.get_by_id(db, dao=models.Transaction, id=id)
 
 
 @router.post("/")
-async def create_trip(transaction: schemas.Transaction):
-    return transaction
+def create_transaction(transaction: schemas.Transaction, db: Session = Depends(get_db)):
+    dao = models.Transaction(title=transaction.title, cost=transaction.cost, trip_id=transaction.trip_id)
+    return crud.create(db=db, dao=dao)
 
 
 @router.patch("/")
-async def create_trip(transaction: schemas.Transaction):
-    return {"message": "schemas.Transaction has been updated."}
+def update_transaction(transaction: schemas.Transaction, db: Session = Depends(get_db)):
+    return crud.update(db=db, dao=models.Transaction, schema=transaction)
 
 
 @router.delete("/{id}")
-async def delete_transaction(id):
-    return {"message": f"schemas.Transaction with id: {id} has been deleted."}
+def delete_transaction(id, db: Session = Depends(get_db)):
+    return crud.delete(db=db, dao=models.Transaction, id=id)
