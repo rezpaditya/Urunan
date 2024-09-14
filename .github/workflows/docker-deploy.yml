@@ -40,7 +40,7 @@ jobs:
         ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
 
     - name: stop container
-      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be || Container is already stopped, continuing..."
+      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be || echo 'Container is already stopped, continuing...'"
     
     - name: connect and run
       run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm --port 80:80 --name urunan-be ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
