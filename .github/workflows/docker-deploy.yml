@@ -39,8 +39,11 @@ jobs:
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
 
-    - name: connect and pull
-      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 80:80 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+    - name: stop container
+      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be || Container is already stopped, continuing..."
+    
+    - name: connect and run
+      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm --port 80:80 --name urunan-be ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
     
     - name: cleanup
       run: rm -rf ~/.ssh
