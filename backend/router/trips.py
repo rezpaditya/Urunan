@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[schemas.Trip])
+@router.get("", response_model=list[schemas.TripOut])
 def get_all_trips(db: Session = Depends(get_db)):
     trips = crud.get(db, dao=models.Trip)
     if trips:
@@ -29,9 +29,11 @@ def get_trip(id, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="failed to fetch trip...")
 
 
-@router.post("/", response_model=schemas.Trip)
+@router.post("/", response_model=schemas.TripOut)
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
-    dao = models.Trip(title=trip.title, text=trip.text)
+    # TODO: make the get_user dynamic
+    user = crud.get_by_id(db, models.User, 1)
+    dao = models.Trip(title=trip.title, text=trip.text, users=[user])
     db_trip = crud.create(db=db, dao=dao)
     if db_trip:
         return db_trip
@@ -51,3 +53,12 @@ def update_trip(trip: schemas.Trip, db: Session = Depends(get_db)):
 @router.delete("/{id}")
 def delete_trip(id, db: Session = Depends(get_db)):
     return crud.delete(db=db, dao=models.Trip, id=id)
+
+
+@router.get("/join/{trip_id}/{user_id}")
+def join(trip_id, user_id, db: Session = Depends(get_db)):
+    trip: models.Trip = crud.get_by_id(db, models.Trip, trip_id)
+    user: models.User = crud.get_by_id(db, models.User, user_id)
+    trip.users.append(user)
+    db.commit()
+    return trip
