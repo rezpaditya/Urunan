@@ -47,3 +47,11 @@ jobs:
     
     - name: cleanup
       run: rm -rf ~/.ssh
+
+  test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: accessibility test
+      run: curl http://${{ secrets.SSH_HOST }}/docs
+
