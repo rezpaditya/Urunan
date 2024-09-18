@@ -1,28 +1,58 @@
 <script setup>
-import { ref } from 'vue'
+import { reactive, onMounted } from 'vue'
 
-const email = ref('')
-const description = ref('')
-const cost = ref(0)
+const form = reactive({
+  user_email: '',
+  title: '',
+  cost: 0
+})
 
-function save() {
-  alert('submit form...')
+const save = async () => {
+  fetch('http://127.0.0.1:8000/transactions/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    user_email: form.user_email,
+    title: form.title,
+    cost: form.cost,
+    trip_id: 1
+  })
+})
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error(error));
 }
+
+onMounted(async () => {
+  fetch('http://127.0.0.1:8000/transactions/', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+  })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error(error));
+})
 </script>
 
 <template>
-  <input type="text" placeholder="author email" v-model="email">
-  <input type="text" placeholder="description" v-model="description">
-  <input type="number" min="0" placeholder='cost' v-model="cost">
-  <button @click="save">Save</button>
+  <form @submit.prevent="save">
+    <input type="text" placeholder="user email" v-model="form.user_email">
+    <input type="text" placeholder="title" v-model="form.title">
+    <input type="number" min="0" placeholder='cost' v-model="form.cost">
+    <button type="submit">Save</button>
+  </form>
 </template>
 
 <style>
 select,
 input,
 button {
-  display: block;
-  margin: 0.5em 0;
+  /* display: block; */
+  margin: 0.5em 0.5em;
   font-size: 15px;
 }
 </style>
