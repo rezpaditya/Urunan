@@ -23,7 +23,7 @@ def get_transaction(id, db: Session = Depends(get_db)):
 
 
 @router.post("/")
-def create_transaction(transaction: schemas.Transaction, db: Session = Depends(get_db)):
+def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     dao = models.Transaction(title=transaction.title, cost=transaction.cost, trip_id=transaction.trip_id, user_email=transaction.user_email)
     return crud.create(db=db, dao=dao)
 
