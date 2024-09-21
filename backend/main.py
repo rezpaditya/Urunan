@@ -15,15 +15,15 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 # TODO: define allow origin
-origins = [
-    "*",
-    "http://127.0.0.1:8080",
-    "http://178.128.143.5:8080",
-]
+# origins = [
+#     "*",
+#     "http://127.0.0.1:8080",
+#     "http://178.128.143.5:8080",
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
