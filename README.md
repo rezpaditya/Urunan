@@ -21,7 +21,7 @@
 - [x] Github action
 - [x] Containerize backend
 - [x] Deploy backend
-- [ ] Containerize frontend
-- [ ] Deploy frontend
+- [x] Containerize frontend
+- [x] Deploy frontend
 - [ ] Setup docker-compose
 - [ ] Tests
