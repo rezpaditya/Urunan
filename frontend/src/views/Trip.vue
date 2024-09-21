@@ -7,6 +7,11 @@ const state = reactive({
     trips: []
 })
 
+const form = reactive({
+  title: '',
+  text: ''
+})
+
 onMounted(async () => {
   fetch(`${import.meta.env.VITE_API_URL}/trips`, {
     method: 'GET',
@@ -18,9 +23,37 @@ onMounted(async () => {
     .then(data => state.trips = data)
     .catch(error => console.error(error));
 })
+
+const save = async () => {
+  fetch(`${import.meta.env.VITE_API_URL}/trips/`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    title: form.title,
+    text: form.text,
+    users: {
+        email: 'dummy@email.com'
+    }
+  })
+})
+  .then(response => response.json())
+  .then(data => {
+    state.trips.push(data)
+    form.title = ''
+    form.text = ''
+  })
+  .catch(error => console.error(error));
+}
 </script>
 
 <template>
+     <form @submit.prevent="save">
+        <input type="text" placeholder="Jalan - jalan Brugge" v-model="form.title">
+        <input type="text" placeholder="Road trip NL - BL" v-model="form.text">
+        <button type="submit">Save</button>
+    </form>
     <TripItem
         v-for="trip in state.trips"
         :key="trip.id"
