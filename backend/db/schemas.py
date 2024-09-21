@@ -25,10 +25,6 @@ class Trip(TripBase):
     
     class Config:
         orm_mode = True
-        
-class TripOut(Trip):
-    users: list[User]
-
 
 class TransactionBase(BaseModel):
     title: str
@@ -36,15 +32,24 @@ class TransactionBase(BaseModel):
     trip_id: int 
     user_email: str 
     
-
-class TransactionCreate(TransactionBase):
-    pass
-
-
 class Transaction(TransactionBase):
     id: int   
     
     class Config:
         orm_mode = True
+        
+class TripOut(Trip):
+    users: list[User]
+    transactions: list[Transaction] = []
+
+
+
+    
+
+class TransactionCreate(TransactionBase):
+    pass
+
+
+
          
          

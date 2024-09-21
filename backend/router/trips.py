@@ -20,7 +20,7 @@ def get_all_trips(db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="failed to fetch trips...")
 
 
-@router.get("/{id}")
+@router.get("/{id}", response_model=schemas.TripOut)
 def get_trip(id, db: Session = Depends(get_db)):
     trip = crud.get_by_id(db, dao=models.Trip, id=id)
     if trip:

@@ -10,13 +10,13 @@ trip_user_association = Table(
     Column('user_id', Integer, ForeignKey('users.id'))
 )
 
-
 class Trip(Base):
     __tablename__ = "trips"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
     text = Column(String)
     users = relationship("User", secondary=trip_user_association)
+    transactions = relationship("Transaction")
 
 
 class Transaction(Base):
