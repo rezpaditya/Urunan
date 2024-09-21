@@ -26,7 +26,7 @@ jobs:
         docker build --tag ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }} .
         docker push ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
 
-    - name: build & publish fronent
+    - name: build & publish frontend
       working-directory: ./frontend
       run: |
         docker build --tag ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }} .
@@ -49,6 +49,7 @@ jobs:
     - name: stop container
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be urunan-fe || \
+          docker rmi ghcr.io/rezpaditya/urunan-fe ghcr.io/rezpaditya/urunan-be \
           echo 'Container is already stopped, continuing...'"
     
     - name: connect and run
