@@ -8,7 +8,7 @@ const form = reactive({
 })
 
 const save = async () => {
-  fetch('http://127.0.0.1:8000/transactions/', {
+  fetch('http://127.0.0.1:80/transactions/', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'

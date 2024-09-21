@@ -8,7 +8,7 @@ const state = reactive({
 })
 
 onMounted(async () => {
-  fetch('http://127.0.0.1:8000/trips', {
+  fetch('http://127.0.0.1:80/trips', {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
