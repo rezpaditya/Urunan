@@ -49,13 +49,12 @@ jobs:
     - name: stop container
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be urunan-fe || \
-          docker rmi ${{ env.BACKEND_IMAGE_NAME }} ${{ env.FRONTEND_IMAGE_NAME }} || \
           echo 'Container is already stopped, continuing...'"
     
     - name: connect and run
       run: |
-        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 80:80 --name urunan-be ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
-          docker run -d --rm -p 8080:8080 --name urunan-fe ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 80:80 --name urunan-be --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
+          docker run -d --rm -p 8080:8080 --name urunan-fe --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
       run: rm -rf ~/.ssh
