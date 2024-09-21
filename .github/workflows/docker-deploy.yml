@@ -49,7 +49,7 @@ jobs:
     - name: stop container
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be urunan-fe || \
-          docker rmi ghcr.io/rezpaditya/urunan-fe ghcr.io/rezpaditya/urunan-be \
+          docker rmi ${{ env.BACKEND_IMAGE_NAME }} ${{ env.FRONTEND_IMAGE_NAME }} || \
           echo 'Container is already stopped, continuing...'"
     
     - name: connect and run
