@@ -17,6 +17,7 @@ app = FastAPI()
 # TODO: define allow origin
 origins = [
     "*",
+    "http://178.128.143.5:8080"
 ]
 
 app.add_middleware(
