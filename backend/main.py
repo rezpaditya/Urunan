@@ -14,8 +14,9 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# TODO: define allow origin
 origins = [
-    "http://localhost:5173",
+    "*",
 ]
 
 app.add_middleware(
