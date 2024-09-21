@@ -8,7 +8,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.actor }}/urunan-be:latest
+  BACKEND_IMAGE_NAME: ${{ github.actor }}/urunan-be:latest
+  FRONTEND_IMAGE_NAME: ${{ github.actor }}/urunan-fe:latest
 
 jobs:
   build:
@@ -19,11 +20,17 @@ jobs:
       run: |
         echo ${{ secrets.PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
     
-    - name: build & publish
+    - name: build & publish backend
       working-directory: ./backend
       run: |
-        docker build --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} .
-        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        docker build --tag ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }} .
+        docker push ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
+
+    - name: build & publish fronent
+      working-directory: ./frontend
+      run: |
+        docker build --tag ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }} .
+        docker push ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
 
   deploy:
     needs: build
@@ -40,10 +47,14 @@ jobs:
         ssh-keyscan -H ${{ secrets.SSH_HOST }} > ~/.ssh/known_hosts
 
     - name: stop container
-      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be || echo 'Container is already stopped, continuing...'"
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be urunan-fe || \
+          echo 'Container is already stopped, continuing...'"
     
     - name: connect and run
-      run: ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 80:80 --name urunan-be ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 80:80 --name urunan-be ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
+          docker run -d --rm -p 8080:8080 --name urunan-fe ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
       run: rm -rf ~/.ssh
