@@ -8,7 +8,7 @@ const form = reactive({
 })
 
 const save = async () => {
-  fetch('http://127.0.0.1:80/transactions/', {
+  fetch(`${import.meta.env.VITE_API_URL}/transactions/`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -26,7 +26,7 @@ const save = async () => {
 }
 
 onMounted(async () => {
-  fetch('http://127.0.0.1:8000/transactions/', {
+  fetch(`${import.meta.env.VITE_API_URL}/transactions/`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'

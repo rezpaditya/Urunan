@@ -8,7 +8,7 @@ const state = reactive({
 })
 
 onMounted(async () => {
-  fetch('http://127.0.0.1:80/trips', {
+  fetch(`${import.meta.env.VITE_API_URL}/trips`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json'
