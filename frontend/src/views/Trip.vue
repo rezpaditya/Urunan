@@ -24,8 +24,7 @@ onMounted(async () => {
     <TripItem
         v-for="trip in state.trips"
         :key="trip.id"
-        :title="trip.title"
-        :text="trip.text"
+        :trip="trip"
     ></TripItem>
 </template>
 

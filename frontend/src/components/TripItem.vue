@@ -1,7 +1,11 @@
 <script setup>
-defineProps(['title', 'text'])
+defineProps({trip: Object})
 </script>
 
 <template>
-  <h4>{{ title }} - {{ text }}</h4>
+  <h4>{{ trip.title }} - {{ trip.text }}</h4>
+  <RouterLink
+    :to="`/${trip.id}`"
+    >Detail
+  </RouterLink>
 </template>
