@@ -54,7 +54,7 @@ jobs:
     - name: connect and run
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 80:80 --name urunan-be ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
-          docker run -d --rm -p 8080:8080 --name urunan-fe --env VITE_API_URL=http://localhost:80 ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
+          docker run -d --rm -p 8080:8080 --name urunan-fe --env VITE_API_URL=http://178.128.143.5:80 ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
       run: rm -rf ~/.ssh
