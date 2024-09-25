@@ -3,5 +3,14 @@ defineProps({transaction: Object})
 </script>
 
 <template>
-  <h4>{{ transaction.title }} - {{ transaction.cost }}</h4>
+  <p>{{ transaction.title }} - {{ transaction.cost }} 
+    <span @click="$emit('deleteTransaction', transaction.id)"> X</span>
+  </p>
 </template>
+
+<style scoped>
+  span {
+    color: red;
+    cursor: pointer;
+  }
+</style>

@@ -18,7 +18,11 @@ const form = reactive({
   cost: 0
 })
 
-onMounted(async () => {
+onMounted(() => {
+  getTransaction()
+})
+
+const getTransaction = async () => {
   fetch(`${import.meta.env.VITE_API_URL}/trips/${tripId}`, {
     method: 'GET',
     headers: {
@@ -31,7 +35,7 @@ onMounted(async () => {
         state.transactions = data.transactions
     })
     .catch(error => console.error(error));
-})
+}
 
 const save = async () => {
   fetch(`${import.meta.env.VITE_API_URL}/transactions/`, {
@@ -43,7 +47,7 @@ const save = async () => {
     user_email: form.user_email,
     title: form.title,
     cost: form.cost,
-    trip_id: 1
+    trip_id: tripId
   })
 })
   .then(response => response.json())
@@ -54,6 +58,23 @@ const save = async () => {
     form.cost = 0
   })
   .catch(error => console.error(error));
+}
+
+const onDeleteTransaction = async (transactionId) => {
+  fetch(`${import.meta.env.VITE_API_URL}/transactions/${transactionId}`, {
+  method: 'DELETE',
+  headers: {
+    'Content-Type': 'application/json'
+    }
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data === true) {
+        // TODO: only update the fe state instead of pulling from be
+        getTransaction() 
+      }
+    })
+    .catch(error => console.error(error));
 }
 </script>
 
@@ -68,6 +89,7 @@ const save = async () => {
         v-for="transactions in state.transactions"
         :key="transactions.id"
         :transaction="transactions"
+        @delete-transaction="onDeleteTransaction"
     ></TransactionItem>
 </template>
 
