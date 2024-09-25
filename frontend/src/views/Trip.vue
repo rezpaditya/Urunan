@@ -12,7 +12,7 @@ const form = reactive({
   text: ''
 })
 
-onMounted(async () => {
+const getTrips = async () => {
   fetch(`${import.meta.env.VITE_API_URL}/trips`, {
     method: 'GET',
     headers: {
@@ -22,7 +22,7 @@ onMounted(async () => {
     .then(response => response.json())
     .then(data => state.trips = data)
     .catch(error => console.error(error));
-})
+}
 
 const save = async () => {
   fetch(`${import.meta.env.VITE_API_URL}/trips/`, {
@@ -46,6 +46,27 @@ const save = async () => {
   })
   .catch(error => console.error(error));
 }
+
+const onDeleteTrip = async (tripId) => {
+  fetch(`${import.meta.env.VITE_API_URL}/trips/${tripId}`, {
+  method: 'DELETE',
+  headers: {
+    'Content-Type': 'application/json'
+    }
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data === true) {
+        // TODO: only update the fe state instead of pulling from be
+        getTrips() 
+      }
+    })
+    .catch(error => console.error(error));
+}
+
+onMounted( () => {
+  getTrips()
+})
 </script>
 
 <template>
@@ -58,6 +79,7 @@ const save = async () => {
         v-for="trip in state.trips"
         :key="trip.id"
         :trip="trip"
+        @delete-trip="onDeleteTrip"
     ></TripItem>
 </template>
 
