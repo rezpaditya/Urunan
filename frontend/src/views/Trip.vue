@@ -13,15 +13,20 @@ const form = reactive({
 })
 
 const getTrips = async () => {
-  fetch(`${import.meta.env.VITE_API_URL}/trips`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-  })
-    .then(response => response.json())
-    .then(data => state.trips = data)
-    .catch(error => console.error(error));
+  // TODO: refactor the try-catch for other http requests
+  try {
+    fetch(`${import.meta.env.VITE_API_URL}/trips`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+    })
+      .then(response => response.json())
+      .then(data => state.trips = data)
+      .catch(error => console.error(error));
+  } catch(e) {
+    console.error(e)
+  }
 }
 
 const save = async () => {
