@@ -80,9 +80,9 @@ const onDeleteTransaction = async (transactionId) => {
 
 <template>
     <form @submit.prevent="save">
-      <input type="text" placeholder="example@email.com" v-model="form.user_email">
-      <input type="text" placeholder="Bayar makan siang" v-model="form.title">
-      <input type="number" min="0" placeholder='50' v-model="form.cost">
+      <input type="text" placeholder="payer email" v-model="form.user_email">
+      <input type="text" placeholder="transaction name" v-model="form.title">
+      <input type="number" min="0" placeholder='cost' v-model="form.cost">
       <button type="submit">Save</button>
     </form>
     <TransactionItem

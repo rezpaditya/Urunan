@@ -71,8 +71,8 @@ onMounted( () => {
 
 <template>
      <form @submit.prevent="save">
-        <input type="text" placeholder="Jalan - jalan Brugge" v-model="form.title">
-        <input type="text" placeholder="Road trip NL - BL" v-model="form.text">
+        <input type="text" placeholder="trip name" v-model="form.title">
+        <input type="text" placeholder="description" v-model="form.text">
         <button type="submit">Save</button>
     </form>
     <TripItem

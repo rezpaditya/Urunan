@@ -40,8 +40,8 @@ onMounted(async () => {
 
 <template>
   <form @submit.prevent="save">
-    <input type="text" placeholder="user email" v-model="form.user_email">
-    <input type="text" placeholder="title" v-model="form.title">
+    <input type="text" placeholder="payer email" v-model="form.user_email">
+    <input type="text" placeholder="transaction name" v-model="form.title">
     <input type="number" min="0" placeholder='cost' v-model="form.cost">
     <button type="submit">Save</button>
   </form>
