@@ -14,4 +14,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def initialize_table(target, connection, **kw):
-    connection.execute(target.insert(), [{'email': 'superuser@example.com'}])
+    connection.execute(target.insert(), [
+    {'email': 'user1'},
+    {'email': 'user2'}
+    ])
