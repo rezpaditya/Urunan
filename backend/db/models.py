@@ -10,6 +10,14 @@ trip_user_association = Table(
     Column('user_id', Integer, ForeignKey('users.id'))
 )
 
+transaction_user_association = Table(
+    'transaction_user',
+    Base.metadata,
+    Column('transaction_id', Integer, ForeignKey('transactions.id')),
+    Column('user_id', Integer, ForeignKey('users.id')),
+    Column('cost', Integer)
+)
+
 class Trip(Base):
     __tablename__ = "trips"
     id = Column(Integer, primary_key=True, index=True)
@@ -26,6 +34,7 @@ class Transaction(Base):
     cost = Column(Integer)
     trip_id = Column(ForeignKey("trips.id"), nullable=False)
     user_email = Column(String)
+    users = relationship("User", secondary=transaction_user_association)
 
 
 class User(Base):
