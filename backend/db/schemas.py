@@ -31,6 +31,7 @@ class TransactionBase(BaseModel):
     cost: float      
     trip_id: int 
     user_email: str 
+    users: Optional[User]
     
 class Transaction(TransactionBase):
     id: int   
