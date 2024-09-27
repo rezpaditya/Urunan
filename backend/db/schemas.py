@@ -13,7 +13,7 @@ class User(UserBase):
 class TripBase(BaseModel):
     title: str
     text: Optional[str]
-    users: Optional[User]
+    users: list[User]
 
 
 class TripCreate(TripBase):
@@ -31,7 +31,7 @@ class TransactionBase(BaseModel):
     cost: float      
     trip_id: int 
     user_email: str 
-    users: Optional[User]
+    users: list[User]
     
 class Transaction(TransactionBase):
     id: int   
