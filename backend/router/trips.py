@@ -33,7 +33,7 @@ def get_trip(id, db: Session = Depends(get_db)):
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
     users = []
     for item in trip.users:
-        users.append(model.User(email=item.email))
+        users.append(models.User(email=item.email))
     dao = models.Trip(title=trip.title, text=trip.text, users=users)
     db_trip = crud.create(db=db, dao=dao)
     if db_trip:
