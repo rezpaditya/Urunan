@@ -31,7 +31,10 @@ def get_trip(id, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=schemas.TripOut)
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
-    dao = models.Trip(title=trip.title, text=trip.text, users=[user for user in trip.users])
+    users = []
+    for item in trip.users:
+        users.append(model.User(email=item.email))
+    dao = models.Trip(title=trip.title, text=trip.text, users=users)
     db_trip = crud.create(db=db, dao=dao)
     if db_trip:
         return db_trip
