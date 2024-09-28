@@ -23,7 +23,7 @@ class Trip(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
     text = Column(String)
-    users = relationship("User", secondary=trip_user_association)
+    users = relationship("User", secondary=trip_user_association, back_populates="trips")
     transactions = relationship("Transaction")
 
 
@@ -41,5 +41,5 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String)
-    trips = relationship("Trip", secondary=trip_user_association)
+    trips = relationship("Trip", secondary=trip_user_association, back_populates="users")
     
