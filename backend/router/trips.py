@@ -31,9 +31,7 @@ def get_trip(id, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=schemas.TripOut)
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
-    # TODO: make the get_user dynamic
-    user = crud.get_by_id(db, models.User, 1)
-    dao = models.Trip(title=trip.title, text=trip.text, users=[user])
+    dao = models.Trip(title=trip.title, text=trip.text, users=[user for user in trip.users])
     db_trip = crud.create(db=db, dao=dao)
     if db_trip:
         return db_trip
