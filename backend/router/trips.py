@@ -29,7 +29,7 @@ def get_trip(id, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="failed to fetch trip...")
 
 
-@router.post("/", response_model=schemas.TripOut)
+@router.post("/", response_model=schemas.TripCreate)
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
     users = []
     for item in trip.users:
