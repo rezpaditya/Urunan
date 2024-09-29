@@ -64,5 +64,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: accessibility test
-      run: curl http://${{ secrets.SSH_HOST }}/docs && curl http://${{ secrets.SSH_HOST }}:8080
+      run: curl --silent --fail http://${{ secrets.SSH_HOST }} && curl --silent --fail http://${{ secrets.SSH_HOST }}:8080/docs
 
