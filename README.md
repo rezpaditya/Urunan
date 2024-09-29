@@ -3,7 +3,16 @@
 
 [![Build Status](https://github.com/rezpaditya/Urunan/actions/workflows/docker-deploy.yml/badge.svg)](https://github.com/rezpaditya/Urunan/actions)
 
-#### Live demo: http://urunan.respa.id
+### Development setup
+```sh
+cd backend
+pipenv install
+uvicorn run backend.main:app --reload
+
+cd frontend
+npm install
+npm run dev
+```
 
 ### Backend
 - [x] Trip CRUD
@@ -27,3 +36,6 @@
 - [x] Deploy frontend
 - [ ] Setup docker-compose
 - [ ] Tests
+
+#### Live demo: http://urunan.respa.id
+#### Swagger API: http://urunan.respa.id:8080/docs
