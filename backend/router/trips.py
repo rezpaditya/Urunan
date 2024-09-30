@@ -29,14 +29,14 @@ def get_trip(id, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="failed to fetch trip...")
 
 
-@router.post("/", response_model=schemas.TripCreate)
+@router.post("/", response_model=schemas.TripOut)
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
-    users = []
-    for item in trip.users:
-        users.append(models.User(email=item.email))
-    dao = models.Trip(title=trip.title, text=trip.text, users=users)
-    db_trip = crud.create(db=db, dao=dao)
-    if db_trip:
+    trip_dao = models.Trip(title=trip.title, text=trip.text)
+    for user in trip.users:
+        user_dao = crud.get_by_id(db, models.User, user.id)
+        trip_dao.users.append(user_dao)
+    
+    if db_trip := crud.create(db=db, dao=trip_dao):
         return db_trip
     else:
         raise HTTPException(status_code=401, detail="Failed to create trip...")
