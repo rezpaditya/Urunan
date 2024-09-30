@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     
 
 class User(UserBase):
-    pass
+    id: int
 
 
 class TripBase(BaseModel):
