@@ -4,12 +4,14 @@ import { reactive, onMounted } from 'vue'
 import TripItem from '../components/TripItem.vue'
 
 const state = reactive({
-    trips: []
+    trips: [],
+    users: []
 })
 
 const form = reactive({
   title: '',
-  text: ''
+  text: '',
+  users: []
 })
 
 const getTrips = async () => {
@@ -29,6 +31,23 @@ const getTrips = async () => {
   }
 }
 
+const getUsers = async () => {
+  // TODO: move https request to some kind of service module
+  try {
+    fetch(`${import.meta.env.VITE_API_URL}/users`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+    })
+      .then(response => response.json())
+      .then(data => state.users = data)
+      .catch(error => console.error(error));
+  } catch(e) {
+    console.error(e)
+  }
+}
+
 const save = async () => {
   fetch(`${import.meta.env.VITE_API_URL}/trips/`, {
   method: 'POST',
@@ -38,9 +57,7 @@ const save = async () => {
   body: JSON.stringify({
     title: form.title,
     text: form.text,
-    users: {
-        email: 'dummy@email.com'
-    }
+    users: form.users
   })
 })
   .then(response => response.json())
@@ -71,6 +88,7 @@ const onDeleteTrip = async (tripId) => {
 
 onMounted( () => {
   getTrips()
+  getUsers()
 })
 </script>
 
@@ -78,6 +96,12 @@ onMounted( () => {
      <form @submit.prevent="save">
         <input type="text" placeholder="trip name" v-model="form.title">
         <input type="text" placeholder="description" v-model="form.text">
+        <div v-for="(user, index) in state.users" class="user-checkbox-div">
+          <label :for="'user-'+index">
+            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="user-checkbox">
+            <span>{{ user.email }}</span>
+          </label>
+        </div>
         <button type="submit">Save</button>
     </form>
     <TripItem
@@ -89,4 +113,11 @@ onMounted( () => {
 </template>
 
 <style>
+.user-checkbox {
+  display: inline;
+}
+
+.user-checkbox-div {
+  text-align: left;
+}
 </style>

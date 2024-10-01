@@ -3,7 +3,7 @@ from sqlalchemy import event
 from fastapi.middleware.cors import CORSMiddleware
 from .db import models, database
 from .db.database import engine
-from .router import trips, transactions
+from .router import trips, transactions, users
 
 
 # seeder
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(trips.router)
 app.include_router(transactions.router)
+app.include_router(users.router)
 
 @app.get("/")
 async def root():
