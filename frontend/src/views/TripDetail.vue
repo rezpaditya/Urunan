@@ -1,6 +1,6 @@
 
 <script setup>
-import { reactive, onMounted } from 'vue'
+import { reactive, onMounted, computed, watch } from 'vue'
 import TransactionItem from '../components/TransactionItem.vue'
 import { useRoute } from 'vue-router'
 
@@ -8,15 +8,23 @@ const route = useRoute()
 const tripId = route.params.id;
 
 const state = reactive({
-    trip: null,
-    transactions: []
+    trip: {},
+    transactions: [],
 })
 
 const form = reactive({
   user_email: '',
   title: '',
-  cost: 0
+  cost: 0,
+  details: []
 })
+
+watch(form, (newValue) => {
+  state.trip.users.map(user => {
+    user['cost'] = form.cost / state.trip.users.length
+  })
+})
+
 
 onMounted(() => {
   getTransaction()
@@ -33,23 +41,25 @@ const getTransaction = async () => {
     .then(data => {
         state.trip = data
         state.transactions = data.transactions
+        console.log(state)
     })
     .catch(error => console.error(error));
 }
 
 const save = async () => {
   fetch(`${import.meta.env.VITE_API_URL}/transactions/`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    user_email: form.user_email,
-    title: form.title,
-    cost: form.cost,
-    trip_id: tripId
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      user_email: form.user_email,
+      title: form.title,
+      cost: form.cost,
+      trip_id: tripId,
+      details: state.trip.users
+    })
   })
-})
   .then(response => response.json())
   .then(data => {
     state.transactions.push(data)
@@ -80,9 +90,18 @@ const onDeleteTransaction = async (transactionId) => {
 
 <template>
     <form @submit.prevent="save">
-      <input type="text" placeholder="payer email" v-model="form.user_email">
+       <select v-model="form.user_email">
+        <option v-for="user in state.trip.users" :value="user.email">{{ user.email }}</option>
+       </select>
       <input type="text" placeholder="transaction name" v-model="form.title">
       <input type="number" min="0" placeholder='cost' v-model="form.cost">
+      <div v-for="(user, index) in state.trip.users">
+        <label :for="'user-'+index">
+          <span>{{ user.email }}</span>
+          <input type="hidden" v-model="user.id">
+          <input type="number" min="0" placeholder='cost' class="user-portion" v-model="user.cost">
+        </label>
+      </div>
       <button type="submit">Save</button>
     </form>
     <TransactionItem
@@ -94,4 +113,7 @@ const onDeleteTransaction = async (transactionId) => {
 </template>
 
 <style>
+.user-portion {
+  display: inline-block;
+}
 </style>

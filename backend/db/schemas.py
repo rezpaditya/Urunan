@@ -28,7 +28,7 @@ class Trip(TripBase):
 
 
 class TransactionDetail(BaseModel):
-    user_email: str
+    email: str
     cost: int
 
 
@@ -47,6 +47,7 @@ class Transaction(TransactionBase):
         
 class TripOut(Trip):
     users: list[User]
+    transactions: list[Transaction]
 
 
 class TransactionCreate(TransactionBase):

@@ -22,11 +22,11 @@ def get_transaction(id, db: Session = Depends(get_db)):
     return crud.get_by_id(db, dao=models.Transaction, id=id)
 
 
-@router.post("/", response_model=schemas.TransactionCreate)
+@router.post("/")  # TODO: define transaction out schema
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     details = []
     for detail in transaction.details:
-        details.append(models.TransactionDetail(user_email=detail.user_email, cost=detail.cost))
+        details.append(models.TransactionDetail(user_email=detail.email, cost=detail.cost))
     dao = models.Transaction(title=transaction.title, cost=transaction.cost, trip_id=transaction.trip_id, user_email=transaction.user_email, details=details)
     return crud.create(db=db, dao=dao)
 
