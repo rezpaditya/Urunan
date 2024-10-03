@@ -152,7 +152,7 @@ const onDeleteTransaction = async (transactionId) => {
 </script>
 
 <template>
-    <label>You ({{ state.currentUser }}) have paid: {{ state.userPaid }}</label>
+    <label>You ({{ state.currentUser }}) have paid: €{{ state.userPaid }}</label>
     <span v-for="debt in state.debts">
       <br>
       <label v-if="debt.from == state.currentUser">{{ debt.to }} owes you: €{{ debt.amount }}</label>

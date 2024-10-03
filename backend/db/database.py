@@ -17,5 +17,6 @@ def initialize_table(target, connection, **kw):
     connection.execute(target.insert(), [
     {'email': 'user1'},
     {'email': 'user2'},
-    {'email': 'user3'}
+    {'email': 'user3'},
+    {'email': 'user4'}
     ])

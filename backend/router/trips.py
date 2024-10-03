@@ -13,11 +13,7 @@ router = APIRouter(
 
 @router.get("", response_model=list[schemas.TripOut])
 def get_all_trips(db: Session = Depends(get_db)):
-    trips = crud.get(db, dao=models.Trip)
-    if trips:
-        return trips
-    else:
-        raise HTTPException(status_code=404, detail="failed to fetch trips...")
+    return crud.get(db, dao=models.Trip)
 
 
 @router.get("/{id}", response_model=schemas.TripOut)
