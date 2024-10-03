@@ -48,9 +48,15 @@ class Transaction(TransactionBase):
 
 class TransactionCreate(TransactionBase):
     details: list[TransactionDetail]
+    
+    
+class TransactionOut(TransactionBase):
+    id: int
+    details: list[TransactionDetail]
+
 
 class TripOut(Trip):
     users: list[User]
-    transactions: list[TransactionCreate]
+    transactions: list[TransactionOut]
 
     
