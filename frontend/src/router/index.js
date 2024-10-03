@@ -12,12 +12,12 @@ const router = createRouter({
       component: TripView,
     },
     {
-      path: '#/:id',
+      path: '/:id',
       name: 'trip-detail',
       component: TripDetailView,
     },
     {
-      path: '#/transaction',
+      path: '/transaction',
       name: 'transaction',
       component: TransactionView,
     },
