@@ -16,7 +16,7 @@ class TransactionDetail(Base):
     id = Column(Integer, primary_key=True, index=True)
     transaction_id = Column(Integer, ForeignKey('transactions.id'))
     transaction = relationship("Transaction", back_populates="details")
-    user_email = Column(String)
+    email = Column(String)
     cost = Column(Integer)
     
 
@@ -35,7 +35,7 @@ class Transaction(Base):
     title = Column(String)
     cost = Column(Integer)
     trip_id = Column(ForeignKey("trips.id"), nullable=False)
-    user_email = Column(String)
+    email = Column(String)
     details = relationship("TransactionDetail", back_populates="transaction")
 
 

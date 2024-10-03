@@ -13,7 +13,7 @@ const state = reactive({
 })
 
 const form = reactive({
-  user_email: '',
+  email: '',
   title: '',
   cost: 0,
   details: []
@@ -21,10 +21,9 @@ const form = reactive({
 
 watch(form, (newValue) => {
   state.trip.users.map(user => {
-    user['cost'] = form.cost / state.trip.users.length
+    user['cost'] = Math.round(form.cost / state.trip.users.length)
   })
 })
-
 
 onMounted(() => {
   getTransaction()
@@ -41,7 +40,8 @@ const getTransaction = async () => {
     .then(data => {
         state.trip = data
         state.transactions = data.transactions
-        console.log(state)
+        // DEBUG
+        console.log(state.trip.transactions)
     })
     .catch(error => console.error(error));
 }
@@ -53,7 +53,7 @@ const save = async () => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      user_email: form.user_email,
+      email: form.email,
       title: form.title,
       cost: form.cost,
       trip_id: tripId,
@@ -63,7 +63,7 @@ const save = async () => {
   .then(response => response.json())
   .then(data => {
     state.transactions.push(data)
-    form.user_email = ''
+    form.email = ''
     form.title = ''
     form.cost = 0
   })
@@ -90,7 +90,7 @@ const onDeleteTransaction = async (transactionId) => {
 
 <template>
     <form @submit.prevent="save">
-       <select v-model="form.user_email">
+       <select v-model="form.email">
         <option v-for="user in state.trip.users" :value="user.email">{{ user.email }}</option>
        </select>
       <input type="text" placeholder="transaction name" v-model="form.title">

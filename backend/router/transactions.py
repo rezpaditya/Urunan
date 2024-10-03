@@ -17,7 +17,7 @@ def get_all_transactions(db: Session = Depends(get_db)):
     # TODO: handle exception
 
 
-@router.get("/{id}")
+@router.get("/{id}", response_model=schemas.TransactionCreate)
 def get_transaction(id, db: Session = Depends(get_db)):
     return crud.get_by_id(db, dao=models.Transaction, id=id)
 
@@ -26,8 +26,8 @@ def get_transaction(id, db: Session = Depends(get_db)):
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     details = []
     for detail in transaction.details:
-        details.append(models.TransactionDetail(user_email=detail.email, cost=detail.cost))
-    dao = models.Transaction(title=transaction.title, cost=transaction.cost, trip_id=transaction.trip_id, user_email=transaction.user_email, details=details)
+        details.append(models.TransactionDetail(email=detail.email, cost=detail.cost))
+    dao = models.Transaction(title=transaction.title, cost=transaction.cost, trip_id=transaction.trip_id, email=transaction.email, details=details)
     return crud.create(db=db, dao=dao)
 
 @router.patch("/")

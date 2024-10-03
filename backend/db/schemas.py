@@ -36,7 +36,7 @@ class TransactionBase(BaseModel):
     title: str
     cost: float      
     trip_id: int 
-    user_email: str 
+    email: str 
     
     
 class Transaction(TransactionBase):
@@ -45,11 +45,12 @@ class Transaction(TransactionBase):
     class Config:
         orm_mode = True
         
-class TripOut(Trip):
-    users: list[User]
-    transactions: list[Transaction]
-
 
 class TransactionCreate(TransactionBase):
     details: list[TransactionDetail]
+
+class TripOut(Trip):
+    users: list[User]
+    transactions: list[TransactionCreate]
+
     
