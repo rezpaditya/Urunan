@@ -128,6 +128,8 @@ const save = async () => {
     form.email = ''
     form.title = ''
     form.cost = 0
+    # TODO: refactor the code flow
+    getTransaction()
   })
   .catch(error => console.error(error));
 }
