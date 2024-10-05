@@ -10,10 +10,8 @@ const tripId = route.params.id;
 const state = reactive({
     trip: {},
     transactions: [],
-    debts: [],
-    userExpenses: {},
+    users: [],
     currentUser: 'user1',
-    userPaid: 0
 })
 
 const form = reactive({
@@ -23,7 +21,7 @@ const form = reactive({
   details: []
 })
 
-watch(form, (newValue) => {
+watch(form, () => {
   state.trip.users.map(user => {
     user['cost'] = Math.round(form.cost / state.trip.users.length)
   })
@@ -31,6 +29,50 @@ watch(form, (newValue) => {
 
 onMounted(() => {
   getTransaction()
+})
+
+const userPaid = computed(() => {
+  const userPaid = transaction => transaction.email === state.currentUser ? transaction.cost : 0;
+  return state.transactions.reduce((total, transaction) => total + userPaid(transaction), 0);
+})
+
+const mappedDebt = computed(() => {
+  const userExpenses = {};
+  state.users.forEach(user => {
+      userExpenses[user.email] = 0; 
+  });
+  state.transactions.forEach(transaction => {
+      transaction.details.forEach(portion => {
+          userExpenses[portion.email] += portion.cost;
+      });
+  });
+  
+  const userDebt = {};
+  state.users.forEach(user => {
+      const userPaid = transaction => transaction.email === user.email ? transaction.cost : 0;
+      const totalPaidByUser = state.transactions.reduce((total, transaction) => total + userPaid(transaction), 0);
+      const totalUserExpense = userExpenses[user.email];
+      userDebt[user.email] = totalPaidByUser - totalUserExpense;
+  });
+
+  const mappedDebt = [];
+  state.users.forEach(borrower => {
+      state.users.forEach(lender => {
+          if (borrower !== lender) {
+              const amountOwed = Math.min(userDebt[borrower.email], -userDebt[lender.email]);
+              if (amountOwed > 0) {
+                  mappedDebt.push({
+                      from: borrower.email,
+                      to: lender.email,
+                      amount: amountOwed
+                  });
+                  userDebt[borrower] -= amountOwed;
+                  userDebt[lender] += amountOwed;
+              }
+          }
+      });
+  });
+  return mappedDebt
 })
 
 const getTransaction = async () => {
@@ -44,66 +86,7 @@ const getTransaction = async () => {
     .then(data => {
         state.trip = data
         state.transactions = data.transactions
-        // DEBUG
-        // Calculate total cost of the trip
-        const totalCost = state.trip.transactions.reduce((total, transaction) => total + transaction.cost, 0);
-        console.log('total cost: ', totalCost);
-
-        // Calculate total user paid
-        state.trip.users.forEach(user => {
-            const userPaid = transaction => transaction.email === state.currentUser ? transaction.cost : 0;
-            state.userPaid = state.trip.transactions.reduce((total, transaction) => total + userPaid(transaction), 0);
-        })
-        // Calculate total expenses for each user
-        const userExpenses = {};
-
-        state.trip.users.forEach(user => {
-            userExpenses[user.email] = 0; // Initialize user expense
-        });
-
-        state.trip.transactions.forEach(transaction => {
-            transaction.details.forEach(portion => {
-                userExpenses[portion.email] += portion.cost;
-            });
-        });
-        console.log('user expenses: ', userExpenses)
-        state.userExpenses = userExpenses
-        
-        // Calculate total debt for each user
-        const userDebt = {};
-
-        state.trip.users.forEach(user => {
-            const userPaid = transaction => transaction.email === user.email ? transaction.cost : 0;
-            const totalPaidByUser = state.trip.transactions.reduce((total, transaction) => total + userPaid(transaction), 0);
-            const totalUserExpense = userExpenses[user.email];
-
-            userDebt[user.email] = totalPaidByUser - totalUserExpense;
-        });
-        console.log('user debts: ', userDebt)
-
-        // Determine who owes whom
-        const debts = [];
-
-        state.trip.users.forEach(borrower => {
-            state.trip.users.forEach(lender => {
-                if (borrower !== lender) {
-                    const amountOwed = Math.min(userDebt[borrower.email], -userDebt[lender.email]);
-                    if (amountOwed > 0) {
-                        debts.push({
-                            from: borrower.email,
-                            to: lender.email,
-                            amount: amountOwed
-                        });
-                        userDebt[borrower] -= amountOwed; // Decrease the borrower's debt
-                        userDebt[lender] += amountOwed;   // Increase the lender's balance
-                    }
-                }
-            });
-        });
-        console.log('debts map: ', debts)
-        state.debts = debts
-        
-
+        state.users = data.users
     })
     .catch(error => console.error(error));
 }
@@ -128,8 +111,6 @@ const save = async () => {
     form.email = ''
     form.title = ''
     form.cost = 0
-    // TODO: refactor the code flow
-    getTransaction()
   })
   .catch(error => console.error(error));
 }
@@ -154,8 +135,8 @@ const onDeleteTransaction = async (transactionId) => {
 </script>
 
 <template>
-    <label>You ({{ state.currentUser }}) have paid: €{{ state.userPaid }}</label>
-    <span v-for="debt in state.debts">
+    <label>You ({{ state.currentUser }}) have paid: €{{ userPaid }}</label>
+    <span v-for="debt in mappedDebt">
       <br>
       <label v-if="debt.from == state.currentUser">{{ debt.to }} owes you: €{{ debt.amount }}</label>
       <label v-else-if="debt.to == state.currentUser">you owe {{ debt.from }}: €{{ debt.amount }}</label>
@@ -166,7 +147,7 @@ const onDeleteTransaction = async (transactionId) => {
        </select>
       <input type="text" placeholder="transaction name" v-model="form.title" required>
       <input type="number" min="0" placeholder='cost' v-model="form.cost">
-      <div v-for="(user, index) in state.trip.users">
+      <div v-for="(user, index) in state.users">
         <label :for="'user-'+index">
           <span>{{ user.email }}</span>
           <input type="hidden" v-model="user.id">
