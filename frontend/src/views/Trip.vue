@@ -1,7 +1,26 @@
 
 <script setup>
-import { reactive, onMounted } from 'vue'
+import { reactive, onMounted, watch } from 'vue'
 import TripItem from '../components/TripItem.vue'
+import { useAuth0 } from '@auth0/auth0-vue';
+
+
+const { loginWithRedirect, logout, user, isAuthenticated } = useAuth0();
+const doLogin = () => loginWithRedirect()
+const doLogout = () => {
+                      logout({ logoutParams: { returnTo: window.location.origin } });
+                    }
+
+watch(user, () => {
+  if(isAuthenticated && user.value){
+    if (user.value.email !== undefined ){
+      const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
+      if (filteredUsers.length === 0) {
+        saveUser(user.value.email)
+      }
+    }
+  }
+})       
 
 const state = reactive({
     trips: [],
@@ -86,13 +105,37 @@ const onDeleteTrip = async (tripId) => {
     .catch(error => console.error(error));
 }
 
+const saveUser = async (email) => {
+  fetch(`${import.meta.env.VITE_API_URL}/users/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      email: email
+    })
+})
+  .then(response => response.json())
+  .then(data => {
+    state.users.push(data)
+  })
+  .catch(error => console.error(error));
+}
+
 onMounted( () => {
   getTrips()
   getUsers()
+  console.log(isAuthenticated)
 })
 </script>
 
 <template>
+    <pre v-if="isAuthenticated">
+      <button @click="doLogout">Log out</button>
+      <code>{{ user }}</code>
+    </pre>
+    <button v-else @click="doLogin">Log in</button>
+
      <form @submit.prevent="save">
         <input type="text" placeholder="trip name" v-model="form.title">
         <input type="text" placeholder="description" v-model="form.text">
