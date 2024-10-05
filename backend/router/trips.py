@@ -66,3 +66,22 @@ def join(trip_id, user_id, db: Session = Depends(get_db)):
     trip.users.append(user)
     db.commit()
     return trip
+
+
+@router.post("/resolve")
+def create_trip(resolved_debts: schemas.ResolvedDebts, db: Session = Depends(get_db)):
+    db_resolved_debts = []
+    for resolved_debt in resolved_debts.debts:
+        db_resolved_debts.append(models.ResolvedDebt(
+            trip_id=resolved_debt.trip_id,
+            from_user=resolved_debt.from_user,
+            to_user=resolved_debt.to_user,
+            amount=resolved_debt.amount))
+    db.bulk_save_objects(db_resolved_debts)
+    db.commit()
+    
+    dao_trip = models.Trip
+    db_data = db.query(dao_trip).filter(dao_trip.id == resolved_debts.trip_id)
+    db_data.update({"is_resolved": True})
+    db.commit()
+    return resolved_debts

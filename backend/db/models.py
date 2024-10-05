@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, String, Table
+from sqlalchemy import Column, String, Integer, ForeignKey, String, Table, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -25,6 +25,7 @@ class Trip(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
     text = Column(String)
+    is_resolved = Column(Boolean, default=False)
     users = relationship("User", secondary=trip_user_association, back_populates="trips")
     transactions = relationship("Transaction", cascade="all, delete")
 
@@ -44,4 +45,13 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String)
     trips = relationship("Trip", secondary=trip_user_association, back_populates="users")
+
+
+class ResolvedDebt(Base):
+    __tablename__ = "resolved_debt"
+    id = Column(Integer, primary_key=True, index=True)
+    trip_id = Column(ForeignKey("trips.id"), nullable=False)
+    from_user = Column(ForeignKey("users.id"), nullable=False)
+    to_user = Column(ForeignKey("users.id"), nullable=False)
+    amount = Column(Integer)
     
