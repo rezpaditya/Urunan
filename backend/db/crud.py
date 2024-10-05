@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import select
 
 
 def get_by_id(db: Session, dao, id: int):
@@ -24,6 +25,7 @@ def update(db: Session, dao, schema):
 
 
 def delete(db: Session, dao, id: int):
-    effected_rows = db.query(dao).filter(dao.id == id).delete()
+    effected_row = db.scalars(select(dao).filter(dao.id == id)).first()
+    db.delete(effected_row)
     db.commit()
-    return bool(effected_rows > 0)
+    return bool(effected_row)

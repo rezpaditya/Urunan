@@ -22,7 +22,7 @@ def get_transaction(id, db: Session = Depends(get_db)):
     return crud.get_by_id(db, dao=models.Transaction, id=id)
 
 
-@router.post("/")  # TODO: define transaction out schema
+@router.post("/", response_model=schemas.TransactionOut)
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     details = []
     for detail in transaction.details:
