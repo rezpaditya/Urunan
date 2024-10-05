@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import select
 from ..db import schemas, models, crud
 from ..dependency import get_db
 
@@ -13,11 +14,7 @@ router = APIRouter(
 
 @router.get("", response_model=list[schemas.TripOut])
 def get_all_trips(db: Session = Depends(get_db)):
-    trips = crud.get(db, dao=models.Trip)
-    if trips:
-        return trips
-    else:
-        raise HTTPException(status_code=404, detail="failed to fetch trips...")
+    return crud.get(db, dao=models.Trip)
 
 
 @router.get("/{id}", response_model=schemas.TripOut)
@@ -53,7 +50,13 @@ def update_trip(trip: schemas.Trip, db: Session = Depends(get_db)):
 
 @router.delete("/{id}")
 def delete_trip(id, db: Session = Depends(get_db)):
-    return crud.delete(db=db, dao=models.Trip, id=id)
+    dao = models.Trip
+    effected_row = db.scalars(select(dao).filter(dao.id == id)).first()
+    effected_row.users = []
+    db.add(effected_row)
+    db.delete(effected_row)
+    db.commit()
+    return True
 
 
 @router.get("/join/{trip_id}/{user_id}")

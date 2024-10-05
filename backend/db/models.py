@@ -16,7 +16,7 @@ class TransactionDetail(Base):
     id = Column(Integer, primary_key=True, index=True)
     transaction_id = Column(Integer, ForeignKey('transactions.id'))
     transaction = relationship("Transaction", back_populates="details")
-    user_email = Column(String)
+    email = Column(String)
     cost = Column(Integer)
     
 
@@ -26,7 +26,7 @@ class Trip(Base):
     title = Column(String)
     text = Column(String)
     users = relationship("User", secondary=trip_user_association, back_populates="trips")
-    transactions = relationship("Transaction")
+    transactions = relationship("Transaction", cascade="all, delete")
 
 
 class Transaction(Base):
@@ -35,8 +35,8 @@ class Transaction(Base):
     title = Column(String)
     cost = Column(Integer)
     trip_id = Column(ForeignKey("trips.id"), nullable=False)
-    user_email = Column(String)
-    details = relationship("TransactionDetail", back_populates="transaction")
+    email = Column(String)
+    details = relationship("TransactionDetail", back_populates="transaction", cascade="all, delete")
 
 
 class User(Base):
