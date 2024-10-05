@@ -188,6 +188,7 @@ const onDeleteTransaction = async (transactionId) => {
         <button type="submit">Save</button>
       </form>
     </div>
+    <label v-else>This trip has been settled!</label>
     <h4>List Transactions</h4>
     <TransactionItem
         v-for="transaction in state.transactions"
