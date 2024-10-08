@@ -51,6 +51,10 @@ jobs:
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be urunan-fe || \
           echo 'Container is already stopped, continuing...'"
     
+    - name: login
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo ${{ secrets.PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin"
+    
     - name: connect and run
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 8080:80 --name urunan-be --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
