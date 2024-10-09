@@ -17,14 +17,14 @@ npm run dev
 ### Backend
 - [x] Trip CRUD
 - [x] Trans CRUD
-- [ ] Report logic
+- [x] Report logic
 - [ ] Auth0 integration
 
 ### Frontend
 - [ ] Login page
-- [ ] Trip page
-- [ ] Transaction page
-- [ ] Report page
+- [x] Trip page
+- [x] Transaction page
+- [x] Report page
 - [ ] Auth0 integration
 
 ### CI/CD
@@ -35,7 +35,7 @@ npm run dev
 - [x] Containerize frontend
 - [x] Deploy frontend
 - [ ] Setup docker-compose
-- [ ] Tests
+- [ ] E2E Tests
 
-#### Live demo: http://urunan.respa.id
-#### Swagger API: http://urunan.respa.id:8080/docs
+#### Live demo: https://urunan.respa.id
+#### Swagger API: https://urunan.respa.id:8080/docs
