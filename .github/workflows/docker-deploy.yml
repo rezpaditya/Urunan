@@ -71,4 +71,4 @@ jobs:
       run: curl --silent --fail --insecure https://${{ secrets.SSH_HOST }}
 
     - name: backend accessibility test
-      run: curl --silent --fail http://${{ secrets.SSH_HOST }}:8080/docs
+      run: curl --silent --fail --insecure https://${{ secrets.SSH_HOST }}:8080/docs
