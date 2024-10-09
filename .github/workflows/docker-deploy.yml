@@ -58,7 +58,7 @@ jobs:
     - name: connect and run
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 8080:80 --name urunan-be --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
-          docker run -d --rm -p 80:8080 --name urunan-fe --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
+          docker run -d --rm -p 443:443 --name urunan-fe --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
       run: rm -rf ~/.ssh
@@ -67,6 +67,8 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     steps:
-    - name: accessibility test
-      run: curl --silent --fail http://${{ secrets.SSH_HOST }} && curl --silent --fail http://${{ secrets.SSH_HOST }}:8080/docs
+    - name: frontend accessibility test
+      run: curl --silent --fail --insecure https://${{ secrets.SSH_HOST }}
 
+    - name: backend accessibility test
+      run: curl --silent --fail --insecure https://${{ secrets.SSH_HOST }}:8080/docs

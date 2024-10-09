@@ -9,4 +9,4 @@ ENV PATH="/.venv/bin:$PATH"
 WORKDIR /src
 COPY . /src/app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--ssl-keyfile=./app/key.pem", "--ssl-certfile=./app/cert.pem"]
