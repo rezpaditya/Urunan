@@ -162,14 +162,13 @@ const onDeleteTransaction = async (transactionId) => {
 </script>
 
 <template>
-    <label>You ({{ state.currentUser }}) have paid: €{{ userPaid }}</label>
-    <span v-for="debt in mappedDebt">
-      <br>
-      <label v-if="debt.from_user.email == state.currentUser">{{ debt.to_user.email }} owes you: €{{ debt.amount }}</label>
-      <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
-    </span>
-    
     <div v-if="!state.trip.is_resolved">
+      <label>You ({{ state.currentUser }}) have paid: €{{ userPaid }}</label>
+      <span v-for="debt in mappedDebt">
+        <br>
+        <label v-if="debt.from_user.email == state.currentUser">{{ debt.to_user.email }} owes you: €{{ debt.amount }}</label>
+        <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
+      </span>
       <button @click="resolve" >Settle</button>
       <h4>Add Transaction</h4>
       <form @submit.prevent="save">
@@ -188,12 +187,19 @@ const onDeleteTransaction = async (transactionId) => {
         <button type="submit">Save</button>
       </form>
     </div>
-    <label v-else>This trip has been settled!</label>
+    <div v-else>
+      <label>This trip has been settled!</label>
+      <h4>Expense Summary</h4>
+      <div v-for="debt in mappedDebt">
+        <label>{{ debt.to_user.email }} owes {{ debt.from_user.email }}: €{{ debt.amount }}</label>
+      </div>
+    </div>
     <h4>List Transactions</h4>
     <TransactionItem
         v-for="transaction in state.transactions"
         :key="transaction.id"
         :transaction="transaction"
+        :isTripSettled="state.trip.is_resolved"
         @delete-transaction="onDeleteTransaction"
     ></TransactionItem>
 </template>
