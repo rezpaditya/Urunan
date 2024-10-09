@@ -12,6 +12,7 @@ const state = reactive({
     transactions: [],
     users: [],
     currentUser: 'user1',
+    resolvedDebt: []
 })
 
 const form = reactive({
@@ -62,8 +63,8 @@ const mappedDebt = computed(() => {
               const amountOwed = Math.min(userDebt[borrower.email], -userDebt[lender.email]);
               if (amountOwed > 0) {
                   mappedDebt.push({
-                      from: borrower.email,
-                      to: lender.email,
+                      from_user: borrower,
+                      to_user: lender,
                       amount: amountOwed
                   });
                   userDebt[borrower] -= amountOwed;
@@ -72,6 +73,14 @@ const mappedDebt = computed(() => {
           }
       });
   });
+  state.resolvedDebt = mappedDebt.map(debt => {
+    return {
+      trip_id: tripId,
+      from_user: debt.from_user.id,
+      to_user: debt.to_user.id,
+      amount: debt.amount
+    }
+  })
   return mappedDebt
 })
 
@@ -115,6 +124,24 @@ const save = async () => {
   .catch(error => console.error(error));
 }
 
+const resolve = async () => {
+  fetch(`${import.meta.env.VITE_API_URL}/trips/resolve/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      trip_id: tripId,
+      debts: state.resolvedDebt
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    getTransaction()
+  })
+  .catch(error => console.error(error));
+}
+
 const onDeleteTransaction = async (transactionId) => {
   console.log(transactionId)
   fetch(`${import.meta.env.VITE_API_URL}/transactions/${transactionId}`, {
@@ -135,32 +162,44 @@ const onDeleteTransaction = async (transactionId) => {
 </script>
 
 <template>
-    <label>You ({{ state.currentUser }}) have paid: €{{ userPaid }}</label>
-    <span v-for="debt in mappedDebt">
-      <br>
-      <label v-if="debt.from == state.currentUser">{{ debt.to }} owes you: €{{ debt.amount }}</label>
-      <label v-else-if="debt.to == state.currentUser">you owe {{ debt.from }}: €{{ debt.amount }}</label>
-    </span>
-    <form @submit.prevent="save">
-       <select v-model="form.email" required>
-        <option v-for="user in state.trip.users" :value="user.email">{{ user.email }}</option>
-       </select>
-      <input type="text" placeholder="transaction name" v-model="form.title" required>
-      <input type="number" min="0" placeholder='cost' v-model="form.cost">
-      <div v-for="(user, index) in state.users">
-        <label :for="'user-'+index">
-          <span>{{ user.email }}</span>
-          <input type="hidden" v-model="user.id">
-          <input type="number" min="0" placeholder='cost' class="user-portion" v-model="user.cost">
-        </label>
+    <div v-if="!state.trip.is_resolved">
+      <label>You ({{ state.currentUser }}) have paid: €{{ userPaid }}</label>
+      <span v-for="debt in mappedDebt">
+        <br>
+        <label v-if="debt.from_user.email == state.currentUser">{{ debt.to_user.email }} owes you: €{{ debt.amount }}</label>
+        <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
+      </span>
+      <button @click="resolve" >Settle</button>
+      <h4>Add Transaction</h4>
+      <form @submit.prevent="save">
+        <select v-model="form.email" required>
+          <option v-for="user in state.trip.users" :value="user.email">{{ user.email }}</option>
+        </select>
+        <input type="text" placeholder="transaction name" v-model="form.title" required>
+        <input type="number" min="0" placeholder='cost' v-model="form.cost">
+        <div v-for="(user, index) in state.users">
+          <label :for="'user-'+index">
+            <span>{{ user.email }}</span>
+            <input type="hidden" v-model="user.id">
+            <input type="number" min="0" placeholder='cost' class="user-portion" v-model="user.cost">
+          </label>
+        </div>
+        <button type="submit">Save</button>
+      </form>
+    </div>
+    <div v-else>
+      <label>This trip has been settled!</label>
+      <h4>Expense Summary</h4>
+      <div v-for="debt in mappedDebt">
+        <label>{{ debt.to_user.email }} owes {{ debt.from_user.email }}: €{{ debt.amount }}</label>
       </div>
-      <button type="submit">Save</button>
-    </form>
+    </div>
     <h4>List Transactions</h4>
     <TransactionItem
         v-for="transaction in state.transactions"
         :key="transaction.id"
         :transaction="transaction"
+        :isTripSettled="state.trip.is_resolved"
         @delete-transaction="onDeleteTransaction"
     ></TransactionItem>
 </template>

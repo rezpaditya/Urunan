@@ -56,7 +56,18 @@ class TransactionOut(TransactionBase):
 
 
 class TripOut(Trip):
+    is_resolved: bool
     users: list[User]
     transactions: list[TransactionOut]
 
+
+class ResolvedDebt(BaseModel):
+    trip_id: int
+    from_user: int
+    to_user: int
+    amount: int
+
+class ResolvedDebts(BaseModel):
+    trip_id: int
+    debts: list[ResolvedDebt]
     
