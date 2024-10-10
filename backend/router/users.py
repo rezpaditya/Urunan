@@ -18,3 +18,9 @@ def get_all_users(db: Session = Depends(get_db)):
         return users
     else:
         raise HTTPException(status_code=404, detail="failed to fetch users...")
+    
+
+@router.post("/")
+def create_user(user: schemas.UserBase, db: Session = Depends(get_db)):
+    user_dao = models.User(email=user.email)
+    return crud.create(db=db, dao=user_dao)
