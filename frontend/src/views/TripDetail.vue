@@ -3,7 +3,10 @@
 import { reactive, onMounted, computed, watch } from 'vue'
 import TransactionItem from '../components/TransactionItem.vue'
 import { useRoute } from 'vue-router'
+import { useUserStore } from '../stores/user'
 
+
+const userStore = useUserStore()
 const route = useRoute()
 const tripId = route.params.id;
 
@@ -11,7 +14,7 @@ const state = reactive({
     trip: {},
     transactions: [],
     users: [],
-    currentUser: 'user1',
+    currentUser: '',
     resolvedDebt: []
 })
 
@@ -30,6 +33,8 @@ watch(form, () => {
 
 onMounted(() => {
   getTransaction()
+  state.currentUser = userStore.user.email
+  console.log('user store value is: ', userStore.user)
 })
 
 const userPaid = computed(() => {
@@ -163,13 +168,14 @@ const onDeleteTransaction = async (transactionId) => {
 
 <template>
     <div v-if="!state.trip.is_resolved">
-      <label>You ({{ state.currentUser }}) have paid: €{{ userPaid }}</label>
+      <label>You ({{ userStore.user.given_name }}) have paid: €{{ userPaid }}</label>
       <span v-for="debt in mappedDebt">
         <br>
         <label v-if="debt.from_user.email == state.currentUser">{{ debt.to_user.email }} owes you: €{{ debt.amount }}</label>
         <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
       </span>
-      <button @click="resolve" >Settle</button>
+      <br>
+      <a @click="resolve" >Settle now!</a>
       <h4>Add Transaction</h4>
       <form @submit.prevent="save">
         <select v-model="form.email" required>
@@ -177,11 +183,14 @@ const onDeleteTransaction = async (transactionId) => {
         </select>
         <input type="text" placeholder="transaction name" v-model="form.title" required>
         <input type="number" min="0" placeholder='cost' v-model="form.cost">
-        <div v-for="(user, index) in state.users">
+
+        <h4>User Portions</h4>
+
+        <div v-for="(user, index) in state.users" class="form">
           <label :for="'user-'+index">
-            <span>{{ user.email }}</span>
             <input type="hidden" v-model="user.id">
             <input type="number" min="0" placeholder='cost' class="user-portion" v-model="user.cost">
+            <span>{{ user.email }}</span>
           </label>
         </div>
         <button type="submit">Save</button>
@@ -194,6 +203,8 @@ const onDeleteTransaction = async (transactionId) => {
         <label>{{ debt.to_user.email }} owes {{ debt.from_user.email }}: €{{ debt.amount }}</label>
       </div>
     </div>
+    <br>
+    <br>
     <h4>List Transactions</h4>
     <TransactionItem
         v-for="transaction in state.transactions"
@@ -213,5 +224,9 @@ pre {
   text-align: left;
   border-radius: 5%;
   padding: 1rem;
+}
+
+.form {
+  text-align: left;
 }
 </style>

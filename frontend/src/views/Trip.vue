@@ -3,17 +3,23 @@
 import { reactive, onMounted, watch } from 'vue'
 import TripItem from '../components/TripItem.vue'
 import { useAuth0 } from '@auth0/auth0-vue';
+import { useUserStore } from '../stores/user'
 
 
-const { loginWithRedirect, logout, user, isAuthenticated } = useAuth0();
-const doLogin = () => loginWithRedirect()
+const userStore = useUserStore()
+const { logout, user, isAuthenticated } = useAuth0();
 const doLogout = () => {
                       logout({ logoutParams: { returnTo: window.location.origin } });
                     }
 
+
 watch(user, () => {
   if(isAuthenticated && user.value){
     if (user.value.email !== undefined ){
+
+      console.log('patching user store...')
+      userStore.$patch( {user: user} )
+
       const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
       if (filteredUsers.length === 0) {
         saveUser(user.value.email)
@@ -125,17 +131,15 @@ const saveUser = async (email) => {
 onMounted( () => {
   getTrips()
   getUsers()
-  console.log(isAuthenticated)
 })
 </script>
 
 <template>
     <pre v-if="isAuthenticated">
-      <button @click="doLogout">Log out</button>
-      <code>{{ user }}</code>
+      <code>Welcome {{ user.given_name }} | <a @click="doLogout">Logout</a></code>
     </pre>
-    <button v-else @click="doLogin">Log in</button>
 
+    <h3>Create Trip</h3>
      <form @submit.prevent="save">
         <input type="text" placeholder="trip name" v-model="form.title">
         <input type="text" placeholder="description" v-model="form.text">
@@ -162,5 +166,9 @@ onMounted( () => {
 
 .user-checkbox-div {
   text-align: left;
+}
+
+a {
+  cursor: pointer;
 }
 </style>
