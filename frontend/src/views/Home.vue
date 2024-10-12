@@ -11,7 +11,7 @@ const login = () => {
     }
 
 onMounted(() => {
-    checkUser()
+    setTimeout(() => checkUser(), 2000)
 })
 
 const checkUser = () => {

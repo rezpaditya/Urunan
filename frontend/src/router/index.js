@@ -18,6 +18,7 @@ const router = createRouter({
       path: '/trip',
       name: 'trip',
       component: TripView,
+      beforeEnter: authGuard,
     },
     {
       path: '/trip/:id',

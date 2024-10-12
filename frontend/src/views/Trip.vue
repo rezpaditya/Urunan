@@ -15,18 +15,15 @@ const doLogout = () => {
 
 watch(user, () => {
   if(isAuthenticated && user.value){
-    if (user.value.email !== undefined ){
-
-      console.log('patching user store...')
-      userStore.$patch( {user: user} )
-
-      const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
-      if (filteredUsers.length === 0) {
-        saveUser(user.value.email)
-      }
-    }
+    manageUser()
   }
-})       
+})     
+
+onMounted( () => {
+  getTrips()
+  getUsers()
+  setTimeout(() => manageUser(), 2000)
+})
 
 const state = reactive({
     trips: [],
@@ -38,6 +35,21 @@ const form = reactive({
   text: '',
   users: []
 })
+
+const manageUser = () => {
+  if (user.value.email !== undefined ){
+
+    console.log('patching user store...')
+    userStore.$patch( {user: user} )
+
+    const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
+    console.log('filteredUsers', filteredUsers)
+    console.log('state.users', state.users)
+    if (filteredUsers.length === 0) {
+      saveUser(user.value.email)
+    }
+  }
+}
 
 const getTrips = async () => {
   // TODO: refactor the try-catch for other http requests
@@ -127,11 +139,6 @@ const saveUser = async (email) => {
   })
   .catch(error => console.error(error));
 }
-
-onMounted( () => {
-  getTrips()
-  getUsers()
-})
 </script>
 
 <template>
