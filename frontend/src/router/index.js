@@ -10,6 +10,7 @@ const router = createRouter({
       path: '/',
       name: 'trip',
       component: TripView,
+      beforeEnter: authGuard,
     },
     {
       path: '/:id',

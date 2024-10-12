@@ -89,6 +89,8 @@ const onDeleteTrip = async (tripId) => {
 onMounted( () => {
   getTrips()
   getUsers()
+  console.log('patching user store...')
+  userStore.$patch( {user: user} )
 })
 </script>
 
