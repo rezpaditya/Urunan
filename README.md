@@ -18,14 +18,14 @@ npm run dev
 - [x] Trip CRUD
 - [x] Trans CRUD
 - [x] Report logic
-- [ ] Auth0 integration
+- [x] Auth0 integration
 
 ### Frontend
-- [ ] Login page
+- [x] Login page
 - [x] Trip page
 - [x] Transaction page
 - [x] Report page
-- [ ] Auth0 integration
+- [x] Auth0 integration
 
 ### CI/CD
 - [x] Setup server
