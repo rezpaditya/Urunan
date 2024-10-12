@@ -167,6 +167,10 @@ const onDeleteTransaction = async (transactionId) => {
 </script>
 
 <template>
+    <RouterLink
+        :to="{ name: 'trip' }"
+        ><- to list trip
+    </RouterLink>
     <div v-if="!state.trip.is_resolved">
       <label>You ({{ userStore.user.given_name }}) have paid: €{{ userPaid }}</label>
       <span v-for="debt in mappedDebt">
