@@ -5,7 +5,7 @@ defineProps({trip: Object})
 <template>
   <p>
     <RouterLink
-        :to="`/${trip.id}`"
+        :to="{ name: 'trip-detail', params: {id: trip.id} }"
         >{{ trip.title }} - {{ trip.text }}
       </RouterLink>
       <span @click="$emit('deleteTrip', trip.id)"> X</span>
