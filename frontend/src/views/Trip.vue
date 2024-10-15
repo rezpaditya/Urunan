@@ -142,22 +142,22 @@ const saveUser = async (email) => {
 </script>
 
 <template>
-    <pre v-if="isAuthenticated">
-      <code>Welcome {{ user.given_name }} | <a @click="doLogout">Logout</a></code>
-    </pre>
-
-    <h3>Create Trip</h3>
+    <code class="my-5 text-xl inline-block" v-if="isAuthenticated">Welcome {{ user.given_name }}! | <button @click="doLogout" class="p-1 rounded-md text-white bg-red-400 inline-block text-sm">Logout</button></code>
+    <h1 class="my-5 text-xl">Create Trip</h1>
      <form @submit.prevent="save">
-        <input type="text" placeholder="trip name" v-model="form.title">
-        <input type="text" placeholder="description" v-model="form.text">
+        <input type="text" placeholder="Trip Name" v-model="form.title" class="p-2 border border-slate-200 rounded-md">
+        <input type="text" placeholder="Description" v-model="form.text" class="p-2 border border-slate-200 rounded-md">
+        <h1 class="my-5">Add Member:</h1>
         <div v-for="(user, index) in state.users" class="user-checkbox-div">
           <label :for="'user-'+index">
-            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="user-checkbox">
+            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="user-checkbox h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
             <span>{{ user.email }}</span>
           </label>
         </div>
-        <button type="submit">Save</button>
+        <button type="submit" class="p-2 rounded-md text-white bg-teal-500">Save</button>
     </form>
+    <br>
+    <h1 v-if="state.trips.length > 0" class="my-5 text-xl">List Trip</h1>
     <TripItem
         v-for="trip in state.trips"
         :key="trip.id"

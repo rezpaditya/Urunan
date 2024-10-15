@@ -3,13 +3,12 @@ defineProps({trip: Object})
 </script>
 
 <template>
-  <p>
-    <RouterLink
+   <RouterLink
         :to="{ name: 'trip-detail', params: {id: trip.id} }"
+        class="block shadow-md p-4 w-full rounded-md"
         >{{ trip.title }} - {{ trip.text }}
+        <span @click="$emit('deleteTrip', trip.id)" class="font-extrabold"> X</span>
       </RouterLink>
-      <span @click="$emit('deleteTrip', trip.id)"> X</span>
-  </p>
 </template>
 
 <style scoped>
