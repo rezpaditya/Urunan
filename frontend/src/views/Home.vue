@@ -24,13 +24,10 @@ const checkUser = () => {
 
 <template>
     <div>
-        <h3>Click the Login Button to continue.</h3>
-        <button @click="login">Log in</button>
+        <h3>Click the button below to continue.</h3>
+        <button @click="login" class="p-2 rounded-md text-white bg-teal-500">Log in</button>
     </div>
 </template>
 
 <style scoped>
-button {
-    background-color: rgb(81, 138, 138);
-}
 </style>
