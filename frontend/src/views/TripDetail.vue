@@ -167,33 +167,46 @@ const onDeleteTransaction = async (transactionId) => {
 </script>
 
 <template>
-    <div v-if="!state.trip.is_resolved">
-      <label>You ({{ userStore.user.given_name }}) have paid: €{{ userPaid }}</label>
-      <span v-for="debt in mappedDebt">
+    <div v-if="!state.trip.is_resolved" class="my-4">
+      <div class="my-10">
+        <label>You ({{ userStore.user.given_name }}) have paid: €{{ userPaid }}</label>
+        <span v-for="debt in mappedDebt">
+          <br>
+          <label v-if="debt.from_user.email == state.currentUser">{{ debt.to_user.email }} owes you: €{{ debt.amount }}</label>
+          <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
+        </span>
         <br>
-        <label v-if="debt.from_user.email == state.currentUser">{{ debt.to_user.email }} owes you: €{{ debt.amount }}</label>
-        <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
-      </span>
-      <br>
-      <a @click="resolve" >Settle now!</a>
+        <button @click="resolve" class="p-1 rounded-md text-white bg-blue-400 inline-block text-sm">Settle Trip</button>
+      </div>
+      
       <h4>Add Transaction</h4>
       <form @submit.prevent="save">
-        <select v-model="form.email" required>
+        <label class="text-xs">Select Payer</label>
+        <select v-model="form.email" required class="p-2 block w-full border border-slate-200 rounded-md">
           <option v-for="user in state.trip.users" :value="user.email">{{ user.email }}</option>
         </select>
-        <input type="text" placeholder="transaction name" v-model="form.title" required>
-        <input type="number" min="0" placeholder='cost' v-model="form.cost">
-
-        <h4>User Portions</h4>
+        <input type="text" placeholder="transaction name" v-model="form.title" required class="p-2 block w-full border border-slate-200 rounded-md">
+        <div class="relative">
+          <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
+            €
+          </div>
+          <input type="number" min="0" placeholder='cost' v-model="form.cost" class="ps-10 p-2.5 block w-full border border-slate-200 rounded-md">
+        </div>
+        
+        <h4 class="mt-10 mb-4">User Portions</h4>
 
         <div v-for="(user, index) in state.users" class="form">
-          <label :for="'user-'+index">
-            <input type="hidden" v-model="user.id">
-            <input type="number" min="0" placeholder='cost' class="user-portion" v-model="user.cost">
-            <span>{{ user.email }}</span>
-          </label>
+          <label class="text-xs">{{ user.email }}</label>
+          <div class="relative">
+            <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
+              €
+            </div>
+            <input type="number" placeholder="cost" v-model="user.cost" class="text-sm block w-full ps-10 p-2.5 border border-slate-200 rounded-md" >
+          </div>
+
+          <input type="hidden" v-model="user.id">
         </div>
-        <button type="submit">Save</button>
+        <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
       </form>
     </div>
     <div v-else>
@@ -205,7 +218,7 @@ const onDeleteTransaction = async (transactionId) => {
     </div>
     <br>
     <br>
-    <h4>List Transactions</h4>
+    <h4 class="mb-2">List Transactions</h4>
     <TransactionItem
         v-for="transaction in state.transactions"
         :key="transaction.id"

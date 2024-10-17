@@ -52,7 +52,7 @@ select,
 input,
 button {
   display: block;
-  margin: 0.5em 0.5em;
+  margin: 0.5em 0em;
   font-size: 15px;
 }
 </style>
