@@ -182,7 +182,7 @@ const onDeleteTransaction = async (transactionId) => {
       <h4>Add Transaction</h4>
       <form @submit.prevent="save">
         <label class="text-xs">Select Payer</label>
-        <select v-model="form.email" required class="p-2 block w-full border border-slate-200 rounded-md">
+        <select v-model="form.email" required class="p-2 block w-full border border-slate-200 dark:bg-white rounded-md">
           <option v-for="user in state.trip.users" :value="user.email">{{ user.email }}</option>
         </select>
         <input type="text" placeholder="transaction name" v-model="form.title" required class="p-2 block w-full border border-slate-200 rounded-md">

@@ -36,6 +36,15 @@ const form = reactive({
   users: []
 })
 
+watch(state, () => {
+  state.users.map(user => {
+    const [localPart, domain] = user.email.split('@');
+    user['masked_email'] = (localPart.length > 2 && domain != undefined)
+      ? localPart.slice(0, 2) + '***'  + `@${domain}`
+      : user.email;
+  })
+})
+
 const manageUser = () => {
   if (user.value.email !== undefined ){
 
@@ -44,7 +53,6 @@ const manageUser = () => {
 
     const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
     console.log('filteredUsers', filteredUsers)
-    console.log('state.users', state.users)
     if (filteredUsers.length === 0) {
       saveUser(user.value.email)
     }
@@ -150,7 +158,7 @@ const saveUser = async (email) => {
         <h1 class="my-5">Add Member:</h1>
         <div v-for="(user, index) in state.users" class="user-checkbox-div flex items-center mb-1">
           <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
-          <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900 dark:text-gray-300">{{ user.email }}</label>
+          <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
         </div>
         <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
     </form>
