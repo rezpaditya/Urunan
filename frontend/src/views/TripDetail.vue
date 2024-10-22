@@ -15,7 +15,8 @@ const state = reactive({
     transactions: [],
     users: [],
     currentUser: '',
-    resolvedDebt: []
+    resolvedDebt: [],
+    isSubmitDisabled: false
 })
 
 const form = reactive({
@@ -27,8 +28,15 @@ const form = reactive({
 
 watch(form, () => {
   state.trip.users.map(user => {
-    user['cost'] = Math.round(form.cost / state.trip.users.length)
-  })
+    user['cost'] = parseFloat((form.cost / state.trip.users.length).toFixed(2))
+  }),
+  {deep: true}
+})
+
+watch(state, () => {
+  const total = state.users.reduce((total, user) => total + user.cost, 0)
+  state.isSubmitDisabled = (total > form.cost),
+  {deep: true}
 })
 
 onMounted(() => {
@@ -190,7 +198,7 @@ const onDeleteTransaction = async (transactionId) => {
           <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
             €
           </div>
-          <input type="number" min="0" placeholder='cost' v-model="form.cost" class="ps-10 p-2.5 block w-full border border-slate-200 rounded-md">
+          <input type="number" min="0" step="any" placeholder="cost" v-model="form.cost" class="ps-10 p-2.5 block w-full border border-slate-200 rounded-md">
         </div>
         
         <h4 class="mt-10 mb-4">User Portions</h4>
@@ -201,12 +209,13 @@ const onDeleteTransaction = async (transactionId) => {
             <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
               €
             </div>
-            <input type="number" placeholder="cost" v-model="user.cost" class="text-sm block w-full ps-10 p-2.5 border border-slate-200 rounded-md" >
+            <input type="number" min="0" step="any" placeholder="cost" v-model="user.cost" class="text-sm block w-full ps-10 p-2.5 border border-slate-200 rounded-md" >
           </div>
 
           <input type="hidden" v-model="user.id">
         </div>
-        <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
+        <label v-if="state.isSubmitDisabled" class="text-red-500">⚠️ Total portion cannot exceed<br> the transaction cost!</label>
+        <button type="submit" :disabled="state.isSubmitDisabled" :class="state.isSubmitDisabled ? 'cursor-not-allowed opacity-50': ''" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
       </form>
     </div>
     <div v-else>
