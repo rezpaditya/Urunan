@@ -54,6 +54,7 @@ class TransactionCreate(TransactionBase):
 class TransactionOut(TransactionBase):
     id: int
     transaction_date: datetime
+    receipt: Optional[str]
     details: list[TransactionDetail]
 
 
@@ -61,6 +62,7 @@ class TransactionEdit(BaseModel):
     id: int
     title: Optional[str] = None
     transaction_date: Optional[datetime] = None
+    receipt: Optional[str] = None
     
 
 class TripOut(Trip):

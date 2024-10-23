@@ -38,6 +38,7 @@ class Transaction(Base):
     cost = Column(Float)
     trip_id = Column(ForeignKey("trips.id"), nullable=False)
     email = Column(String)
+    receipt = Column(String)
     transaction_date = Column(DateTime, default=datetime.now(), nullable=False)
     created_at = Column(DateTime, default=datetime.now(), nullable=False)
     details = relationship("TransactionDetail", back_populates="transaction", cascade="all, delete")
