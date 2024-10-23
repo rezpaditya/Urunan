@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 
 class UserBase(BaseModel):
@@ -52,8 +53,15 @@ class TransactionCreate(TransactionBase):
     
 class TransactionOut(TransactionBase):
     id: int
+    transaction_date: datetime
     details: list[TransactionDetail]
 
+
+class TransactionEdit(BaseModel):
+    id: int
+    title: Optional[str] = None
+    transaction_date: Optional[datetime] = None
+    
 
 class TripOut(Trip):
     is_resolved: bool
