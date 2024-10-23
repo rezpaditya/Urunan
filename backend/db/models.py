@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, String, Table, Boolean
+from sqlalchemy import Column, String, Integer, ForeignKey, String, Table, Boolean, Float
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -17,7 +17,7 @@ class TransactionDetail(Base):
     transaction_id = Column(Integer, ForeignKey('transactions.id'))
     transaction = relationship("Transaction", back_populates="details")
     email = Column(String)
-    cost = Column(Integer)
+    cost = Column(Float)
     
 
 class Trip(Base):
@@ -34,7 +34,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
-    cost = Column(Integer)
+    cost = Column(Float)
     trip_id = Column(ForeignKey("trips.id"), nullable=False)
     email = Column(String)
     details = relationship("TransactionDetail", back_populates="transaction", cascade="all, delete")

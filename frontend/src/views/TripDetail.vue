@@ -15,7 +15,8 @@ const state = reactive({
     transactions: [],
     users: [],
     currentUser: '',
-    resolvedDebt: []
+    resolvedDebt: [],
+    isSubmitDisabled: false
 })
 
 const form = reactive({
@@ -27,8 +28,15 @@ const form = reactive({
 
 watch(form, () => {
   state.trip.users.map(user => {
-    user['cost'] = Math.round(form.cost / state.trip.users.length)
-  })
+    user['cost'] = parseFloat((form.cost / state.trip.users.length).toFixed(2))
+  }),
+  {deep: true}
+})
+
+watch(state, () => {
+  const total = state.users.reduce((total, user) => total + user.cost, 0)
+  state.isSubmitDisabled = (total > form.cost),
+  {deep: true}
 })
 
 onMounted(() => {
@@ -169,6 +177,7 @@ const onDeleteTransaction = async (transactionId) => {
 <template>
     <div v-if="!state.trip.is_resolved" class="my-4">
       <div class="my-10">
+        <h1 class="my-5 text-xl">🗒️ Transaction Summary</h1>
         <label>You ({{ userStore.user.given_name }}) have paid: €{{ userPaid }}</label>
         <span v-for="debt in mappedDebt">
           <br>
@@ -176,10 +185,10 @@ const onDeleteTransaction = async (transactionId) => {
           <label v-else-if="debt.to_user.email == state.currentUser">you owe {{ debt.from_user.email }}: €{{ debt.amount }}</label>
         </span>
         <br>
-        <button @click="resolve" class="p-1 rounded-md text-white bg-blue-400 inline-block text-sm">Settle Trip</button>
+        <button @click="resolve" class="p-1 px-3 rounded-md text-white bg-blue-400 inline-block text-sm">Settle Trip</button>
       </div>
       
-      <h4>Add Transaction</h4>
+      <h1 class="my-5 text-xl">🥤 Add Transaction</h1>
       <form @submit.prevent="save">
         <label class="text-xs">Select Payer</label>
         <select v-model="form.email" required class="p-2 block w-full border border-slate-200 dark:bg-white rounded-md">
@@ -190,35 +199,35 @@ const onDeleteTransaction = async (transactionId) => {
           <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
             €
           </div>
-          <input type="number" min="0" placeholder='cost' v-model="form.cost" class="ps-10 p-2.5 block w-full border border-slate-200 rounded-md">
+          <input type="number" min="0" step="any" placeholder="cost" v-model="form.cost" class="ps-10 p-2.5 block w-full border border-slate-200 rounded-md">
         </div>
         
-        <h4 class="mt-10 mb-4">User Portions</h4>
-
+        <h1 class="my-5 text-xl mt-10 mb-4">⚖️ User Portions</h1>
         <div v-for="(user, index) in state.users" class="form">
           <label class="text-xs">{{ user.email }}</label>
           <div class="relative">
             <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
               €
             </div>
-            <input type="number" placeholder="cost" v-model="user.cost" class="text-sm block w-full ps-10 p-2.5 border border-slate-200 rounded-md" >
+            <input type="number" min="0" step="any" placeholder="cost" v-model="user.cost" class="text-sm block w-full ps-10 p-2.5 border border-slate-200 rounded-md" >
           </div>
 
           <input type="hidden" v-model="user.id">
         </div>
-        <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
+        <label v-if="state.isSubmitDisabled" class="text-red-500">⚠️ Total portion cannot exceed<br> the transaction cost!</label>
+        <button type="submit" :disabled="state.isSubmitDisabled" :class="state.isSubmitDisabled ? 'cursor-not-allowed opacity-50': ''" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
       </form>
     </div>
     <div v-else>
       <label>This trip has been settled!</label>
-      <h4>Expense Summary</h4>
+      <h1 class="my-5 text-xl">Expense Summary</h1>
       <div v-for="debt in mappedDebt">
         <label>{{ debt.to_user.email }} owes {{ debt.from_user.email }}: €{{ debt.amount }}</label>
       </div>
     </div>
     <br>
     <br>
-    <h4 class="mb-2">List Transactions</h4>
+    <h1 class="my-5 text-xl mb-2">List Transactions</h1>
     <TransactionItem
         v-for="transaction in state.transactions"
         :key="transaction.id"

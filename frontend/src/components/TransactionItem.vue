@@ -3,9 +3,9 @@ defineProps({transaction: Object, isTripSettled: Boolean})
 </script>
 
 <template>
-  <p>{{ transaction.title }} €{{ transaction.cost }} - paid by {{ transaction.email }}
-    <span v-if="!isTripSettled" @click="$emit('deleteTransaction', transaction.id)"> X</span>
-  </p>
+  <div class="block p-2 my-2 w-full rounded-md border border-slate-200">{{ transaction.title }} €{{ transaction.cost }} - paid by {{ transaction.email }}
+    <span v-if="!isTripSettled" @click="$emit('deleteTransaction', transaction.id)"> ❌</span>
+  </div>
 </template>
 
 <style scoped>

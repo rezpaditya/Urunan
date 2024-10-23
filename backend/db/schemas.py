@@ -29,7 +29,7 @@ class Trip(TripBase):
 
 class TransactionDetail(BaseModel):
     email: str
-    cost: int
+    cost: float
 
 
 class TransactionBase(BaseModel):
