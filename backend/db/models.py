@@ -1,5 +1,6 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, String, Table, Boolean, Float
+from sqlalchemy import Column, String, Integer, ForeignKey, String, Table, Boolean, Float, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from .database import Base
 
 
@@ -37,6 +38,9 @@ class Transaction(Base):
     cost = Column(Float)
     trip_id = Column(ForeignKey("trips.id"), nullable=False)
     email = Column(String)
+    receipt = Column(String)
+    transaction_date = Column(DateTime, default=datetime.now(), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(), nullable=False)
     details = relationship("TransactionDetail", back_populates="transaction", cascade="all, delete")
 
 
