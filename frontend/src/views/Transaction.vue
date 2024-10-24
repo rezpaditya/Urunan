@@ -1,4 +1,8 @@
 <script setup>
+
+
+// THIS COMPONENT IS DEPRECATEED!! TO BE DELETED SOON.
+
 import { reactive, onMounted } from 'vue'
 
 const form = reactive({
