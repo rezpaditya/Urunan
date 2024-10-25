@@ -47,6 +47,10 @@ const update = async () => {
   .catch(error => console.error(error));
 }
 
+const downloadReceipt = () => {
+  window.open(`${import.meta.env.VITE_API_URL}/transactions/file/${transactionId}`)
+}
+
 onMounted(async () => {
   fetch(`${import.meta.env.VITE_API_URL}/transactions/${transactionId}`, {
     method: 'GET',
@@ -73,7 +77,7 @@ onMounted(async () => {
     <input v-model="state.transaction.transaction_date" type="date" placeholder="Transaction date" class="p-2 block w-full border border-slate-200 rounded-md">
     
     <br>
-    <a v-if="state.transaction.receipt" href="#">Download Receipt</a>
+    <a v-if="state.transaction.receipt" @click="downloadReceipt()">Download Receipt</a>
     <input type="file" @change="setFile($event)" placeholder="Receipt" class="p-2 block w-full border border-slate-200 rounded-md">
     <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Update</button>
   </form>
