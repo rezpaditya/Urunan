@@ -1,9 +1,10 @@
 <script setup>
 import { reactive, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 
 const route = useRoute()
+const router = useRouter()
 const transactionId = route.params.id;
 
 const state = reactive({
@@ -23,7 +24,7 @@ const setFile = ($event) => {
   }
 }
 
-const save = async () => {
+const update = async () => {
   const params = new URLSearchParams({
     'id': transactionId,
     'title': state.transaction.title,
@@ -40,12 +41,8 @@ const save = async () => {
     },
     body: formData
   })
-  .then(response => response.json())
-  .then(data => {
-    state.transactions.push(data)
-    form.email = ''
-    form.title = ''
-    form.cost = 0
+  .then(response => {
+    (response.ok) ? router.go(-1) : alert('Oops! Something when wrong!')
   })
   .catch(error => console.error(error));
 }
@@ -67,17 +64,18 @@ onMounted(async () => {
 </script>
 
 <template>
-  <h1>Payer: {{ state.transaction.email }}</h1>
-  <h1>Cost: {{ state.transaction.cost }}</h1>
-  <form @submit.prevent="save">
+  <h1 class="my-5 text-xl">Payer: {{ state.transaction.email }}</h1>
+  <h1 class="my-5 text-xl">Cost: €{{ state.transaction.cost }}</h1>
+  <form @submit.prevent="update">
     <label class="text-xs">Transation Title</label>
     <input v-model="state.transaction.title" type="text" placeholder="Transaction title" class="p-2 block w-full border border-slate-200 rounded-md">
     <label class="text-xs">Transation Date</label>
     <input v-model="state.transaction.transaction_date" type="date" placeholder="Transaction date" class="p-2 block w-full border border-slate-200 rounded-md">
-    <label class="text-xs">Receipt</label>
+    
+    <br>
     <a v-if="state.transaction.receipt" href="#">Download Receipt</a>
     <input type="file" @change="setFile($event)" placeholder="Receipt" class="p-2 block w-full border border-slate-200 rounded-md">
-    <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
+    <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Update</button>
   </form>
 </template>
 
