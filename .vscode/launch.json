@@ -9,6 +9,9 @@
             "type": "debugpy",
             "request": "launch",
             "module": "uvicorn",
+            "env": {
+                "DB_FILE_PATH": "./data/urunan.db"
+            },
             "args": [
                 "backend.main:app",
                 "--reload"
