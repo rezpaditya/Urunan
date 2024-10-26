@@ -75,7 +75,7 @@ class ResolvedDebt(BaseModel):
     trip_id: int
     from_user: int
     to_user: int
-    amount: int
+    amount: float
 
 class ResolvedDebts(BaseModel):
     trip_id: int

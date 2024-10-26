@@ -27,13 +27,14 @@ onMounted( () => {
 
 const state = reactive({
     trips: [],
-    users: []
+    users: [],
+    toggleAddTrip: false,
 })
 
 const form = reactive({
   title: '',
   text: '',
-  users: []
+  users: [],
 })
 
 watch(state, () => {
@@ -110,6 +111,7 @@ const save = async () => {
     state.trips.push(data)
     form.title = ''
     form.text = ''
+    state.toggleAddTrip = !state.toggleAddTrip
   })
   .catch(error => console.error(error));
 }
@@ -150,20 +152,23 @@ const saveUser = async (email) => {
 </script>
 
 <template>
-    <code class="my-5 text-xl inline-block" v-if="isAuthenticated">🥳 Welcome {{ user.given_name }}! | <button @click="doLogout" class="p-1 rounded-md text-white bg-red-400 inline-block text-sm">Logout</button></code>
-    <h1 class="my-5 text-xl">🏕️ Create Trip</h1>
-     <form @submit.prevent="save">
-        <input type="text" placeholder="Trip Name" v-model="form.title" class="p-2 border border-slate-200 rounded-md w-full">
-        <input type="text" placeholder="Description" v-model="form.text" class="p-2 border border-slate-200 rounded-md w-full">
-        <h1 class="my-5">👥 Add Member:</h1>
-        <div v-for="(user, index) in state.users" class="user-checkbox-div flex items-center mb-1">
-          <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
-          <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
-        </div>
-        <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
-    </form>
-    <br>
-    <h1 v-if="state.trips.length > 0" class="my-5 text-xl">List Trip</h1>
+    <code class="my-5 text-xl inline-block" v-if="isAuthenticated">🏕️ Welcome, {{ user.given_name }}! | <button @click="doLogout" class="p-1 rounded-md text-white bg-red-400 inline-block text-sm">Logout</button></code>
+    <hr>
+    <h1 v-if="state.trips.length > 0" class="my-5 text-xl font-semibold">🧳 Your Trips</h1>
+    <span @click="state.toggleAddTrip=!state.toggleAddTrip" class=" cursor-pointer block p-2 my-2 w-full rounded-md border border-dashed border-slate-200 bg-slate-50">+ Create New Trip</span>
+    <div v-if="state.toggleAddTrip">
+      <h1 class="my-5 text-xl">Create Trip</h1>
+      <form @submit.prevent="save">
+          <input type="text" placeholder="Trip Name" v-model="form.title" class="p-2 border border-slate-200 rounded-md w-full">
+          <input type="text" placeholder="Description" v-model="form.text" class="p-2 border border-slate-200 rounded-md w-full">
+          <h1 class="my-5">👥 Add Member:</h1>
+          <div v-for="(user, index) in state.users" class="user-checkbox-div flex items-center mb-1">
+            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
+            <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
+          </div>
+          <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
+      </form>
+    </div>
     <TripItem
         v-for="trip in state.trips"
         :key="trip.id"
@@ -173,14 +178,6 @@ const saveUser = async (email) => {
 </template>
 
 <style>
-/* .user-checkbox {
-  display: inline;
-}
-
-.user-checkbox-div {
-  text-align: left;
-} */
-
 a {
   cursor: pointer;
 }
