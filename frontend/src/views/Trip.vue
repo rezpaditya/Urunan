@@ -29,7 +29,7 @@ const state = reactive({
     trips: [],
     users: [],
     toggleAddTrip: false,
-    currentUser: '',
+    currentUser: {},
 })
 
 const form = reactive({
@@ -53,11 +53,10 @@ const manageUser = () => {
     console.log('patching user store...')
     userStore.$patch( {user: user} )
 
-		state.currentUser = user.value.email
+    const loggedInUser = state.users.find((item) => item.email === user.value.email)
+		state.currentUser = loggedInUser
 
-    const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
-    console.log('filteredUsers', filteredUsers)
-    if (filteredUsers.length === 0) {
+    if (loggedInUser === undefined) {
       saveUser(user.value.email)
     }
   }
@@ -98,6 +97,7 @@ const getUsers = async () => {
 }
 
 const save = async () => {
+  // push the logged in user to the form
 	form.users.push(state.currentUser)
 
   fetch(`${import.meta.env.VITE_API_URL}/trips/`, {
@@ -168,7 +168,7 @@ const saveUser = async (email) => {
           <input type="text" placeholder="Description" v-model="form.text" class="p-2 border border-slate-200 rounded-md w-full">
           <h1 class="my-5">👥 Add Member:</h1>
 					<template v-for="(user, index) in state.users">
-	          <div v-if="state.currentUser !== user.email" class="user-checkbox-div flex items-center mb-1">
+	          <div v-if="state.currentUser.email !== user.email" class="user-checkbox-div flex items-center mb-1">
 	            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
 	            <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
 	          </div>
