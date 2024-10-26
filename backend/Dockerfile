@@ -6,6 +6,7 @@ COPY Pipfile.lock .
 RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy
 ENV PATH="/.venv/bin:$PATH"
 
+RUN mkdir -p /data/urunan
 WORKDIR /src
 COPY . /src/app
 

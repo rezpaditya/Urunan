@@ -57,7 +57,9 @@ jobs:
     
     - name: connect and run
       run: |
-        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 8080:80 --name urunan-be --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "\
+          mkdir -p /data/urunan;
+          docker run -d --rm -p 8080:80 --name urunan-be -v /data/urunan:/data/urunan --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
           docker run -d --rm -p 443:443 --name urunan-fe --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
