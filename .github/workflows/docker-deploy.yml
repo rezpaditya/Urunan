@@ -10,6 +10,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE_NAME: ${{ github.actor }}/urunan-be:latest
   FRONTEND_IMAGE_NAME: ${{ github.actor }}/urunan-fe:latest
+  DB_FILE_PATH: /home/${{ secrets.SSH_USER }}/data/urunan
 
 jobs:
   build:
@@ -57,7 +58,9 @@ jobs:
     
     - name: connect and run
       run: |
-        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker run -d --rm -p 8080:80 --name urunan-be --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "\
+          mkdir -p ${{ env.DB_FILE_PATH }};
+          docker run -d --rm -p 8080:80 --name urunan-be -v ${{ env.DB_FILE_PATH }}:${{ env.DB_FILE_PATH }} -e DB_FILE_PATH=${{ env.DB_FILE_PATH }}/urunan.db --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
           docker run -d --rm -p 443:443 --name urunan-fe --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
