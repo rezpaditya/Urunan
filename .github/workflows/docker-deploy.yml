@@ -10,7 +10,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE_NAME: ${{ github.actor }}/urunan-be:latest
   FRONTEND_IMAGE_NAME: ${{ github.actor }}/urunan-fe:latest
-  DB_FILE_PATH: /data/urunan
+  DB_FILE_PATH: /home/${{ secrets.SSH_USER }}/data/urunan
 
 jobs:
   build:
