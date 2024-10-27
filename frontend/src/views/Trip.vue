@@ -31,7 +31,6 @@ const state = reactive({
     users: [],
     toggleAddTrip: false,
     currentUser: {},
-    selectedUser: []
 })
 
 const form = reactive({
