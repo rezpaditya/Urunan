@@ -54,10 +54,12 @@ const manageUser = () => {
     userStore.$patch( {user: user} )
 
     const loggedInUser = state.users.find((item) => item.email === user.value.email)
-		state.currentUser = loggedInUser
 
     if (loggedInUser === undefined) {
+      // Save it if a new user
       saveUser(user.value.email)
+    } else {
+      state.currentUser = loggedInUser
     }
   }
 }
