@@ -4,6 +4,7 @@ import { reactive, onMounted, watch } from 'vue'
 import TripItem from '../components/TripItem.vue'
 import { useAuth0 } from '@auth0/auth0-vue';
 import { useUserStore } from '../stores/user'
+import { Multiselect } from 'vue-multiselect'
 
 
 const userStore = useUserStore()
@@ -60,6 +61,7 @@ const manageUser = () => {
       saveUser(user.value.email)
     } else {
       state.currentUser = loggedInUser
+			state.users = state.users.filter((item) => item.email != state.currentUser.email)
     }
   }
 }
@@ -118,6 +120,7 @@ const save = async () => {
     state.trips.push(data)
     form.title = ''
     form.text = ''
+    form.users = []
     state.toggleAddTrip = !state.toggleAddTrip
   })
   .catch(error => console.error(error));
@@ -156,6 +159,10 @@ const saveUser = async (email) => {
   })
   .catch(error => console.error(error));
 }
+
+const optionUsers = ({email, id, masked_email}) => {
+  return email
+}
 </script>
 
 <template>
@@ -164,18 +171,21 @@ const saveUser = async (email) => {
     <h1 v-if="state.trips.length > 0" class="my-5 text-xl font-semibold">🧳 Your Trips</h1>
     <span @click="state.toggleAddTrip=!state.toggleAddTrip" class=" cursor-pointer block p-2 my-2 w-full rounded-md border border-dashed border-slate-200 bg-slate-50">+ Create New Trip</span>
     <div v-if="state.toggleAddTrip">
-      <h1 class="my-5 text-xl">Create Trip</h1>
       <form @submit.prevent="save">
-          <input type="text" placeholder="Trip Name" v-model="form.title" class="p-2 border border-slate-200 rounded-md w-full">
-          <input type="text" placeholder="Description" v-model="form.text" class="p-2 border border-slate-200 rounded-md w-full">
-          <h1 class="my-5">👥 Add Member:</h1>
-					<template v-for="(user, index) in state.users">
-	          <div v-if="state.currentUser.email !== user.email" class="user-checkbox-div flex items-center mb-1">
-	            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
-	            <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
-	          </div>
-					</template>
-          <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
+          <input type="text" required placeholder="Trip Name" v-model="form.title" class="p-2 border border-slate-200 rounded-md w-full">
+          <input type="text" placeholder="Description (optional)" v-model="form.text" class="p-2 border border-slate-200 rounded-md w-full">
+          <Multiselect v-model="form.users" 
+            :options="state.users" 
+            :custom-label="optionUsers" optionLabel="name" placeholder="-- Invite Users --"
+            :multiple="true" :close-on-select="false" :clear-on-select="false"
+            track-by="id">
+            <template #selection="{ values, search, isOpen }">
+              <span class="multiselect__single"
+                    v-if="values.length"
+                    v-show="!isOpen">{{ values.length }} options selected</span>
+            </template>
+          </Multiselect>
+          <button type="submit" class="p-2 mb-16 rounded-md text-white bg-teal-500 w-full">Save</button>
       </form>
     </div>
     <TripItem
@@ -191,3 +201,4 @@ a {
   cursor: pointer;
 }
 </style>
+<style src="vue-multiselect/dist/vue-multiselect.min.css"></style>
