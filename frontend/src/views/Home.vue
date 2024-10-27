@@ -24,8 +24,8 @@ const checkUser = () => {
 
 <template>
     <div>
-        <h3>Click the button below to continue.</h3>
-        <button @click="login" class="p-2 rounded-md text-white bg-teal-500">Log in</button>
+        <h3 class="text-left">Click the button below to continue.</h3>
+        <button @click="login" class="p-1 px-2 rounded-md text-white bg-teal-500">Log in</button>
     </div>
 </template>
 
