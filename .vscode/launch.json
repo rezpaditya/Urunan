@@ -17,6 +17,12 @@
                 "--reload"
             ],
             "jinja": true
+        },
+        {
+            "command": "npm run dev --prefix ${workspaceFolder}/frontend",
+            "name": "Client Vue3",
+            "request": "launch",
+            "type": "node-terminal",
         }
     ]
 }

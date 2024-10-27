@@ -29,6 +29,7 @@ const state = reactive({
     trips: [],
     users: [],
     toggleAddTrip: false,
+    currentUser: {},
 })
 
 const form = reactive({
@@ -52,10 +53,13 @@ const manageUser = () => {
     console.log('patching user store...')
     userStore.$patch( {user: user} )
 
-    const filteredUsers = state.users.filter((tmp) => tmp.email === user.value.email)
-    console.log('filteredUsers', filteredUsers)
-    if (filteredUsers.length === 0) {
+    const loggedInUser = state.users.find((item) => item.email === user.value.email)
+
+    if (loggedInUser === undefined) {
+      // Save it if a new user
       saveUser(user.value.email)
+    } else {
+      state.currentUser = loggedInUser
     }
   }
 }
@@ -95,6 +99,9 @@ const getUsers = async () => {
 }
 
 const save = async () => {
+  // push the logged in user to the form
+	form.users.push(state.currentUser)
+
   fetch(`${import.meta.env.VITE_API_URL}/trips/`, {
   method: 'POST',
   headers: {
@@ -162,10 +169,12 @@ const saveUser = async (email) => {
           <input type="text" placeholder="Trip Name" v-model="form.title" class="p-2 border border-slate-200 rounded-md w-full">
           <input type="text" placeholder="Description" v-model="form.text" class="p-2 border border-slate-200 rounded-md w-full">
           <h1 class="my-5">👥 Add Member:</h1>
-          <div v-for="(user, index) in state.users" class="user-checkbox-div flex items-center mb-1">
-            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
-            <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
-          </div>
+					<template v-for="(user, index) in state.users">
+	          <div v-if="state.currentUser.email !== user.email" class="user-checkbox-div flex items-center mb-1">
+	            <input type="checkbox" v-model="form.users" :id="'user-'+index" :value="user" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded">
+	            <label :for="'user-'+index" class="ms-1 text-sm font-medium text-gray-900">{{ user.masked_email }}</label>
+	          </div>
+					</template>
           <button type="submit" class="p-2 rounded-md text-white bg-teal-500 w-full">Save</button>
       </form>
     </div>
