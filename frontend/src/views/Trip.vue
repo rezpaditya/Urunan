@@ -61,6 +61,7 @@ const manageUser = () => {
       saveUser(user.value.email)
     } else {
       state.currentUser = loggedInUser
+			state.users = state.users.filter((item) => item.email != state.currentUser.email)
     }
   }
 }
