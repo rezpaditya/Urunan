@@ -10,4 +10,4 @@ RUN mkdir -p /data/urunan
 WORKDIR /src
 COPY . /src/app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--ssl-keyfile=./app/key.pem", "--ssl-certfile=./app/cert.pem"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--ssl-keyfile=.cert/urunan_respa_id.key", "--ssl-certfile=.cert/urunan_respa_id.crt"]
