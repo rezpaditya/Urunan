@@ -11,4 +11,4 @@ COPY . .
 RUN npm run build
 
 EXPOSE 443
-CMD [ "http-server", "--ssl", "--port", "443", "dist" ]
+CMD [ "http-server", "--ssl", "--cert", "/home/github/.cert/urunan_respa_id.crt", "--key", "/home/github/.cert/urunan_respa_id.key", "--port", "443", "dist" ]
