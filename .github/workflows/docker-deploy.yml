@@ -11,6 +11,7 @@ env:
   BACKEND_IMAGE_NAME: ${{ github.actor }}/urunan-be:latest
   FRONTEND_IMAGE_NAME: ${{ github.actor }}/urunan-fe:latest
   DB_FILE_PATH: /home/${{ secrets.SSH_USER }}/data/urunan
+  CERT_FILE_PATH: /home/${{ secrets.SSH_USER }}/.cert
 
 jobs:
   build:
@@ -61,7 +62,7 @@ jobs:
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "\
           mkdir -p ${{ env.DB_FILE_PATH }};
           docker run -d --rm -p 8080:80 --name urunan-be -v ${{ env.DB_FILE_PATH }}:${{ env.DB_FILE_PATH }} -e DB_FILE_PATH=${{ env.DB_FILE_PATH }}/urunan.db --pull=always ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}; \
-          docker run -d --rm -p 443:443 --name urunan-fe --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
+          docker run -d --rm -p 443:443 --name urunan-fe -v ${{ env.CERT_FILE_PATH }}:/app/.cert/ --pull=always ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}"
     
     - name: cleanup
       run: rm -rf ~/.ssh
@@ -71,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: frontend accessibility test
-      run: curl --silent --fail --insecure https://${{ secrets.SSH_HOST }}
+      run: curl --fail --insecure https://${{ secrets.SSH_HOST }}
 
     - name: backend accessibility test
       run: curl --silent --fail --insecure https://${{ secrets.SSH_HOST }}:8080/docs
