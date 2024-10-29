@@ -50,18 +50,18 @@ watch(state, () => {
 
 const manageUser = () => {
   if (user.value.email !== undefined ){
-
     console.log('patching user store...')
     userStore.$patch( {user: user} )
-
     const loggedInUser = state.users.find((item) => item.email === user.value.email)
-
     if (loggedInUser === undefined) {
       // Save it if a new user
       saveUser(user.value.email)
     } else {
       state.currentUser = loggedInUser
 			state.users = state.users.filter((item) => item.email != state.currentUser.email)
+      // TODO: move this filter to BE
+      const isUserIncluded = (users) => Boolean(users.find((user) => user.email === state.currentUser.email))
+      state.trips = state.trips.filter((trip) => isUserIncluded(trip.users))
     }
   }
 }
@@ -103,17 +103,16 @@ const getUsers = async () => {
 const save = async () => {
   // push the logged in user to the form
 	form.users.push(state.currentUser)
-
   fetch(`${import.meta.env.VITE_API_URL}/trips/`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    title: form.title,
-    text: form.text,
-    users: form.users
-  })
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      title: form.title,
+      text: form.text,
+      users: form.users
+    })
 })
   .then(response => response.json())
   .then(data => {
@@ -163,12 +162,13 @@ const saveUser = async (email) => {
 const optionUsers = ({email, id, masked_email}) => {
   return email
 }
+
 </script>
 
 <template>
     <code class="my-5 text-xl inline-block" v-if="isAuthenticated">🏕️ Welcome, {{ user.given_name }}! | <button @click="doLogout" class="p-1 rounded-md text-white bg-red-400 inline-block text-sm">Logout</button></code>
     <hr>
-    <h1 v-if="state.trips.length > 0" class="my-5 text-xl font-semibold">🧳 Your Trips</h1>
+    <h1 class="my-5 text-xl font-semibold">🧳 Your Trips</h1>
     <span @click="state.toggleAddTrip=!state.toggleAddTrip" class=" cursor-pointer block p-2 my-2 w-full rounded-md border border-dashed border-slate-200 bg-slate-50">+ Create New Trip</span>
     <div v-if="state.toggleAddTrip">
       <form @submit.prevent="save">
@@ -188,12 +188,14 @@ const optionUsers = ({email, id, masked_email}) => {
           <button type="submit" class="p-2 mb-16 rounded-md text-white bg-teal-500 w-full">Save</button>
       </form>
     </div>
-    <TripItem
-        v-for="trip in state.trips"
-        :key="trip.id"
-        :trip="trip"
-        @delete-trip="onDeleteTrip"
-    ></TripItem>
+    <template v-if="Object.keys(state.currentUser).length > 0">
+      <TripItem
+          v-for="trip in state.trips"
+          :key="trip.id"
+          :trip="trip"
+          @delete-trip="onDeleteTrip"
+      ></TripItem>
+    </template>
 </template>
 
 <style>
