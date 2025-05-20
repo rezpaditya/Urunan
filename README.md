@@ -3,6 +3,9 @@
 
 [![Build Status](https://github.com/rezpaditya/Urunan/actions/workflows/docker-deploy.yml/badge.svg)](https://github.com/rezpaditya/Urunan/actions)
 
+![image](https://github.com/user-attachments/assets/ac23ee49-98e4-4d3e-9392-499a1f587cec)
+
+
 ### Development setup
 ```sh
 cd backend
