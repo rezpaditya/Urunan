@@ -53,6 +53,11 @@ jobs:
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker stop urunan-be urunan-fe || \
           echo 'Container is already stopped, continuing...'"
+
+    - name: delete container
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "docker rm urunan-be urunan-fe || \
+          echo 'Container is already removed, continuing...'"
     
     - name: login
       run: |
