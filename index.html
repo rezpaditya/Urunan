@@ -356,8 +356,8 @@ input, select { -webkit-appearance: none; appearance: none; }
 
     <div class="topbar">
       <div class="topbar-left">
-        <span class="topbar-name">🏕️ { currentUser.name }</span>
-        <span class="topbar-email">{ currentUser.email }</span>
+        <span class="topbar-name">🏕️ {{ currentUser.name }}</span>
+        <span class="topbar-email">{{ currentUser.email }}</span>
       </div>
       <button class="btn-danger-soft" @click="logout">Logout</button>
     </div>
@@ -368,7 +368,7 @@ input, select { -webkit-appearance: none; appearance: none; }
 
     <!-- Create trip toggle -->
     <button class="btn-add" @click="showAddTrip = !showAddTrip">
-      { showAddTrip ? '✕ Cancel' : '+ Create New Trip' }
+      {{ showAddTrip ? '✕ Cancel' : '+ Create New Trip' }}
     </button>
 
     <!-- Create trip form -->
@@ -388,11 +388,11 @@ input, select { -webkit-appearance: none; appearance: none; }
 
         <div v-if="tripForm.participants.length" class="chip-list mb-1">
           <span v-for="p in tripForm.participants" :key="p.email" class="chip">
-            { p.email }
+            {{ p.email }}
             <button type="button" class="chip-x" @click="removeParticipant(p.email)">×</button>
           </span>
         </div>
-        <div class="field-hint" style="margin-top:-0.125rem">You ({ currentUser.email }) are included automatically.</div>
+        <div class="field-hint" style="margin-top:-0.125rem">You ({{ currentUser.email }}) are included automatically.</div>
 
         <button type="submit" class="btn btn-primary btn-lg" style="margin-top:0.375rem">Save Trip</button>
       </form>
@@ -407,12 +407,12 @@ input, select { -webkit-appearance: none; appearance: none; }
     <div v-for="trip in myTrips" :key="trip.id" class="trip-card">
       <div class="trip-card-body" @click="openTrip(trip.id)">
         <div class="trip-card-title">
-          <span class="trip-card-name">{ trip.title }</span>
+          <span class="trip-card-name">{{ trip.title }}</span>
           <span v-if="trip.is_resolved" class="badge badge-settled">Settled</span>
         </div>
-        <div v-if="trip.text" class="trip-card-desc">{ trip.text }</div>
+        <div v-if="trip.text" class="trip-card-desc">{{ trip.text }}</div>
         <div class="trip-card-meta">
-          👥 { trip.users.length } · 💳 { trip.transactions.length } txn · €{ tripTotal(trip).toFixed(2) }
+          👥 {{ trip.users.length }} · 💳 {{ trip.transactions.length }} txn · €{{ tripTotal(trip).toFixed(2) }}
         </div>
       </div>
       <button class="btn-icon" @click="confirmDeleteTrip(trip.id)">🗑</button>
@@ -424,26 +424,26 @@ input, select { -webkit-appearance: none; appearance: none; }
 
     <div class="back-bar">
       <button class="btn-ghost" @click="view = 'trips'">← Back</button>
-      <span class="back-bar-title">{ currentTrip.title }</span>
+      <span class="back-bar-title">{{ currentTrip.title }}</span>
       <span v-if="currentTrip.is_resolved" class="badge badge-settled">Settled</span>
     </div>
 
     <!-- Debt Summary -->
     <div class="summary-card">
       <div class="section-title" style="margin-bottom:0.5rem">💰 Summary</div>
-      <div class="summary-paid">You paid: <b>€{ myPaid.toFixed(2) }</b></div>
+      <div class="summary-paid">You paid: <b>€{{ myPaid.toFixed(2) }}</b></div>
       <div v-if="mappedDebt.length === 0" class="debt-line" style="color:var(--gray-400)">
-        { currentTrip.transactions.length === 0 ? 'No transactions yet.' : 'All settled up! 🎉' }
+        {{ currentTrip.transactions.length === 0 ? 'No transactions yet.' : 'All settled up! 🎉' }}
       </div>
       <div v-for="d in mappedDebt" :key="d.from_user.email + d.to_user.email" class="debt-line">
         <span v-if="d.from_user.email === currentUser.email" class="debt-owe">
-          ↑ You owe { d.to_user.email }: €{ d.amount.toFixed(2) }
+          ↑ You owe {{ d.to_user.email }}: €{{ d.amount.toFixed(2) }}
         </span>
         <span v-else-if="d.to_user.email === currentUser.email" class="debt-recv">
-          ↓ { d.from_user.email } owes you: €{ d.amount.toFixed(2) }
+          ↓ {{ d.from_user.email }} owes you: €{{ d.amount.toFixed(2) }}
         </span>
         <span v-else class="debt-other">
-          { d.from_user.email } → { d.to_user.email }: €{ d.amount.toFixed(2) }
+          {{ d.from_user.email }} → {{ d.to_user.email }}: €{{ d.amount.toFixed(2) }}
         </span>
       </div>
       <button v-if="!currentTrip.is_resolved && currentTrip.transactions.length > 0"
@@ -456,19 +456,19 @@ input, select { -webkit-appearance: none; appearance: none; }
     <div class="card" style="margin-bottom:0.875rem">
       <div class="section-title mb-2">👥 Participants</div>
       <div class="chip-list">
-        <span v-for="u in currentTrip.users" :key="u.email" class="participant-chip">{ u.email }</span>
+        <span v-for="u in currentTrip.users" :key="u.email" class="participant-chip">{{ u.email }}</span>
       </div>
     </div>
 
     <!-- Transactions header -->
     <div class="section-row">
       <span class="section-title">🥤 Transactions</span>
-      <span style="font-size:0.8125rem;color:var(--gray-400)">Total €{ tripTotal(currentTrip).toFixed(2) }</span>
+      <span style="font-size:0.8125rem;color:var(--gray-400)">Total €{{ tripTotal(currentTrip).toFixed(2) }}</span>
     </div>
 
     <!-- Add transaction toggle (only if not settled) -->
     <button v-if="!currentTrip.is_resolved" class="btn-add" @click="showAddTransaction = !showAddTransaction">
-      { showAddTransaction ? '✕ Cancel' : '+ Add Transaction' }
+      {{ showAddTransaction ? '✕ Cancel' : '+ Add Transaction' }}
     </button>
 
     <!-- Add transaction form -->
@@ -476,14 +476,14 @@ input, select { -webkit-appearance: none; appearance: none; }
       <form class="form" @submit.prevent="addTransaction">
         <select v-model="transactionForm.email" class="input" required>
           <option value="" disabled>-- Who paid? --</option>
-          <option v-for="u in currentTrip.users" :key="u.email" :value="u.email">{ u.email }</option>
+          <option v-for="u in currentTrip.users" :key="u.email" :value="u.email">{{ u.email }}</option>
         </select>
         <input v-model="transactionForm.title" class="input" type="text" required placeholder="What was it for?">
         <div class="input-prefix">
           <span class="input-prefix-sym">€</span>
           <input v-model.number="transactionForm.cost" class="input" type="number" min="0.01" step="any" required placeholder="0.00">
         </div>
-        <div class="field-hint">Split equally: €{ perPersonCost } per person ({ currentTrip.users.length } people)</div>
+        <div class="field-hint">Split equally: €{{ perPersonCost }} per person ({{ currentTrip.users.length }} people)</div>
         <button type="submit" class="btn btn-primary btn-lg" style="margin-top:0.25rem">Add Transaction</button>
       </form>
     </div>
@@ -497,13 +497,13 @@ input, select { -webkit-appearance: none; appearance: none; }
     <div v-for="tx in [...currentTrip.transactions].reverse()" :key="tx.id" class="tx-card">
       <div class="tx-body">
         <div class="tx-row">
-          <span class="tx-name">{ tx.title }</span>
-          <span class="tx-amount">€{ tx.cost.toFixed(2) }</span>
+          <span class="tx-name">{{ tx.title }}</span>
+          <span class="tx-amount">€{{ tx.cost.toFixed(2) }}</span>
         </div>
-        <div class="tx-payer">Paid by { tx.email }</div>
+        <div class="tx-payer">Paid by {{ tx.email }}</div>
         <div class="tx-splits">
           <span v-for="d in tx.details" :key="d.email" class="tx-split">
-            { d.email.split('@')[0] }: €{ d.cost.toFixed(2) }
+            {{ d.email.split('@')[0] }}: €{{ d.cost.toFixed(2) }}
           </span>
         </div>
       </div>
