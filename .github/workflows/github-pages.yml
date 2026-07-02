@@ -42,3 +42,6 @@ jobs:
       - name: deploy
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # Pages deployment queue can be slow; outlast it instead of aborting
+          timeout: 1800000
