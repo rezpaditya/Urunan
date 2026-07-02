@@ -40,5 +40,4 @@ npm run dev
 - [ ] Setup docker-compose
 - [ ] E2E Tests
 
-#### Live demo: https://urunan.respa.id
-#### Swagger API: https://urunan.respa.id:8080/docs
+#### Live demo: https://rezpaditya.github.io/Urunan/
