@@ -238,6 +238,7 @@ input, select { -webkit-appearance: none; appearance: none; }
 }
 .badge-settled { background: var(--green-100); color: var(--green); }
 .badge-gray { background: var(--gray-100); color: var(--gray-500); }
+.badge-live { background: var(--green-100); color: var(--green); }
 .chip-list { display: flex; flex-wrap: wrap; gap: 0.375rem; }
 .chip {
   display: inline-flex;
@@ -435,6 +436,7 @@ input, select { -webkit-appearance: none; appearance: none; }
         <div class="trip-card-title">
           <span class="trip-card-name">{{ trip.title }}</span>
           <span v-if="trip.is_resolved" class="badge badge-settled">Settled</span>
+          <span v-if="syncBadge(trip)" class="badge" :class="syncBadge(trip).cls">{{ syncBadge(trip).label }}</span>
         </div>
         <div v-if="trip.text" class="trip-card-desc">{{ trip.text }}</div>
         <div class="trip-card-meta">
@@ -452,6 +454,7 @@ input, select { -webkit-appearance: none; appearance: none; }
       <button class="btn-ghost" @click="view = 'trips'">← Back</button>
       <span class="back-bar-title">{{ currentTrip.title }}</span>
       <span v-if="currentTrip.is_resolved" class="badge badge-settled">Settled</span>
+      <span v-if="syncBadge(currentTrip)" class="badge" :class="syncBadge(currentTrip).cls">{{ syncBadge(currentTrip).label }}</span>
       <button class="btn-ghost" style="flex-shrink:0" @click="shareTrip">📤 Share</button>
     </div>
 
@@ -555,7 +558,13 @@ input, select { -webkit-appearance: none; appearance: none; }
   <div v-if="shareModal" class="modal-backdrop" @click.self="shareModal = false">
     <div class="modal">
       <h3 class="section-title" style="margin-bottom:0.25rem">📤 Share trip</h3>
-      <p class="field-hint" style="margin-top:0">
+      <p v-if="shareLiveMode" class="field-hint" style="margin-top:0">
+        Friends scan the QR code or open the link <b>while you have Urunan open</b> —
+        the trip transfers directly between your devices, end-to-end encrypted and
+        never stored on a server. Afterwards changes sync live whenever you're
+        both online.
+      </p>
+      <p v-else class="field-hint" style="margin-top:0">
         Friends open this link (or scan the QR code) to import the trip with all its
         transactions onto their device. Share again after adding expenses to keep
         everyone up to date — imports merge automatically, nothing gets duplicated.
@@ -563,6 +572,8 @@ input, select { -webkit-appearance: none; appearance: none; }
       <div v-if="shareQrSvg" class="qr-box" v-html="shareQrSvg"></div>
       <p v-else class="field-hint">This trip is too large for a QR code — use the link instead.</p>
       <input class="input" readonly :value="shareUrl" @focus="$event.target.select()" style="font-size:0.75rem">
+      <button v-if="shareLiveMode" class="btn-ghost" style="font-size:0.75rem;align-self:flex-start"
+        @click="shareOffline">Recipient can't be online right now? Use an offline link</button>
       <div class="modal-actions">
         <button class="btn btn-primary" @click="copyShareLink">📋 Copy link</button>
         <button v-if="canNativeShare" class="btn btn-secondary" @click="nativeShare">📱 Share via…</button>
@@ -2894,6 +2905,12 @@ var qrcode = function() {
 <script>
 const { createApp, reactive, computed, ref, watch } = Vue;
 
+// Live sync relay endpoint (wss://…). Empty string disables live sync and
+// falls back to offline #trip= links. Deploy server/ to Cloud Run, then set
+// the URL here — or per-device via:
+//   localStorage.setItem('urunan_sync_api', 'wss://urunan-sync-….run.app')
+const SYNC_API = localStorage.getItem('urunan_sync_api') || '';
+
 createApp({
   setup() {
     const view = ref('setup');
@@ -2983,8 +3000,10 @@ createApp({
 
     const confirmDeleteTrip = id => {
       if (!confirm('Delete this trip and all its transactions?')) return;
+      const gone = trips.value.find(t => t.id === id);
       trips.value = trips.value.filter(t => t.id !== id);
       saveTrips();
+      if (gone && gone.sync) closeSync(gone.sync.id);
     };
 
     const openTrip = id => {
@@ -3080,6 +3099,7 @@ createApp({
         }))
       });
       saveTrips();
+      broadcastTrip(trip);
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
       showAddTransaction.value = false;
     };
@@ -3087,13 +3107,14 @@ createApp({
     const confirmDeleteTransaction = txId => {
       if (!confirm('Delete this transaction?')) return;
       const trip = currentTrip.value;
-      if (trip) { trip.transactions = trip.transactions.filter(tx => tx.id !== txId); saveTrips(); }
+      if (trip) { trip.transactions = trip.transactions.filter(tx => tx.id !== txId); saveTrips(); broadcastTrip(trip); }
     };
 
     const settleTrip = () => {
       if (!confirm('Mark as settled? No more transactions can be added.')) return;
       currentTrip.value.is_resolved = true;
       saveTrips();
+      broadcastTrip(currentTrip.value);
     };
 
     // ── Share link + QR sync ───────────────────────────────────
@@ -3105,6 +3126,7 @@ createApp({
     const shareModal = ref(false);
     const shareUrl = ref('');
     const shareQrSvg = ref('');
+    const shareLiveMode = ref(false);
     const canNativeShare = typeof navigator.share === 'function';
 
     const b64uFromBytes = bytes => {
@@ -3126,8 +3148,12 @@ createApp({
     const gunzip = async bytes => new Uint8Array(await new Response(
       new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
 
+    // The wire form strips the sync pairing: the room id and key must never
+    // leave this device except inside the share URL's #fragment.
+    const tripForWire = trip => { const { sync, ...rest } = trip; return rest; };
+
     const encodeTripShare = async trip => {
-      const raw = new TextEncoder().encode(JSON.stringify(trip));
+      const raw = new TextEncoder().encode(JSON.stringify(tripForWire(trip)));
       if (window.CompressionStream) return '1.' + b64uFromBytes(await gzip(raw));
       return '0.' + b64uFromBytes(raw);
     };
@@ -3144,11 +3170,11 @@ createApp({
       return trip;
     };
 
-    const shareTrip = async () => {
-      const base = location.protocol === 'file:'
-        ? location.href.split('#')[0]
-        : location.origin + location.pathname;
-      shareUrl.value = base + '#trip=' + await encodeTripShare(currentTrip.value);
+    const shareBase = () => location.protocol === 'file:'
+      ? location.href.split('#')[0]
+      : location.origin + location.pathname;
+
+    const renderShareQr = () => {
       try {
         const qr = qrcode(0, 'M');
         qr.addData(shareUrl.value);
@@ -3157,7 +3183,32 @@ createApp({
       } catch (e) {
         shareQrSvg.value = '';  // trip too large for QR capacity
       }
+    };
+
+    const shareTrip = async () => {
+      const trip = currentTrip.value;
+      if (SYNC_API && syncSupported) {
+        if (!trip.sync) {
+          trip.sync = { id: newSyncId(), key: await newSyncKey() };
+          saveTrips();
+        }
+        connectSync(trip);
+        shareUrl.value = shareBase() + '#join=' + trip.sync.id + '.' + trip.sync.key;
+        shareLiveMode.value = true;
+      } else {
+        shareUrl.value = shareBase() + '#trip=' + await encodeTripShare(trip);
+        shareLiveMode.value = false;
+      }
+      renderShareQr();
       shareModal.value = true;
+    };
+
+    // Fallback when the recipient can't be online at the same time:
+    // the classic self-contained #trip= link.
+    const shareOffline = async () => {
+      shareUrl.value = shareBase() + '#trip=' + await encodeTripShare(currentTrip.value);
+      shareLiveMode.value = false;
+      renderShareQr();
     };
 
     const copyShareLink = async () => {
@@ -3191,21 +3242,179 @@ createApp({
       return trips.value.find(t => t.id === incoming.id);
     };
 
+    // ── Live sync relay ────────────────────────────────────────
+    // Optional zero-storage sync: devices sharing a trip join a room
+    // (named by an unguessable 128-bit syncId) on a dumb WebSocket
+    // relay and gossip full trip snapshots. Every payload is encrypted
+    // with a per-trip AES-GCM key that only ever travels inside the
+    // share URL's #fragment, so the relay sees ciphertext and stores
+    // nothing — the data still lives only in participants' browsers.
+    // Snapshots are combined with the same add-only mergeTrip union as
+    // manual imports (so edits/deletes still don't propagate), which
+    // makes the gossip idempotent: no versions or clocks needed. Sync
+    // happens while devices are online together; the offline #trip=
+    // link remains the fallback. Trips never shared stay 100% local.
+    const syncSupported = !!(window.crypto && crypto.subtle && window.CompressionStream && window.WebSocket);
+    const syncStatus = ref({});          // syncId -> { live, peers }
+
+    const newSyncId = () => b64uFromBytes(crypto.getRandomValues(new Uint8Array(16)));
+    const newSyncKey = async () => {
+      const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+      return b64uFromBytes(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
+    };
+    const importSyncKey = keyB64 =>
+      crypto.subtle.importKey('raw', bytesFromB64u(keyB64), 'AES-GCM', false, ['encrypt', 'decrypt']);
+
+    const encryptTrip = async (trip, keyB64) => {
+      const raw = await gzip(new TextEncoder().encode(JSON.stringify(tripForWire(trip))));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await importSyncKey(keyB64), raw));
+      const out = new Uint8Array(iv.length + ct.length);
+      out.set(iv); out.set(ct, iv.length);
+      return b64uFromBytes(out);
+    };
+    const decryptTrip = async (blobB64, keyB64) => {
+      const data = bytesFromB64u(blobB64);
+      const raw = new Uint8Array(await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: data.subarray(0, 12) }, await importSyncKey(keyB64), data.subarray(12)));
+      const trip = JSON.parse(new TextDecoder().decode(await gunzip(raw)));
+      if (!trip || typeof trip !== 'object' || !trip.id ||
+          !Array.isArray(trip.users) || !Array.isArray(trip.transactions))
+        throw new Error('not a valid trip');
+      return trip;
+    };
+
+    const syncSockets = new Map();       // syncId -> WebSocket (one per synced trip while visible)
+    const syncTimers = new Map();        // syncId -> pending broadcast debounce
+    const syncBackoff = new Map();       // syncId -> next reconnect delay (ms)
+    const syncJoinWaiters = new Map();   // syncId -> resolve fn of a pending #join=
+
+    const setSyncStatus = (id, patch) => {
+      syncStatus.value = { ...syncStatus.value,
+        [id]: { live: false, peers: 0, ...syncStatus.value[id], ...patch } };
+    };
+
+    const broadcastTrip = trip => {
+      if (!trip || !trip.sync) return;
+      const { id, key } = trip.sync;
+      clearTimeout(syncTimers.get(id));
+      syncTimers.set(id, setTimeout(async () => {
+        const ws = syncSockets.get(id);
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;  // peers get our state on the next mutual connect
+        try { ws.send(JSON.stringify({ t: 'state', blob: await encryptTrip(trip, key) })); } catch (e) {}
+      }, 300));
+    };
+
+    // Union size — the gossip termination test: reply only when we hold
+    // something the sender lacked, so exchanges always shrink to silence.
+    const tripItemCount = t => t.users.length + t.transactions.length + (t.is_resolved ? 1 : 0);
+
+    const connectSync = trip => {
+      if (!SYNC_API || !syncSupported || !trip.sync) return;
+      const { id, key } = trip.sync;
+      if (syncSockets.has(id) || document.hidden) return;
+      const ws = new WebSocket(SYNC_API + '/v1/ws/' + id);
+      syncSockets.set(id, ws);
+      ws.onopen = () => {
+        syncBackoff.set(id, 2000);
+        setSyncStatus(id, { live: true });
+        broadcastTrip(trips.value.find(t => t.sync && t.sync.id === id));
+      };
+      ws.onmessage = async ev => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch (e) { return; }
+        if (msg.t === 'peers') {
+          const prev = (syncStatus.value[id] || {}).peers || 0;
+          setSyncStatus(id, { peers: msg.n });
+          // A newly-joined peer needs our snapshot (it may have nothing yet)
+          if (msg.n > prev) broadcastTrip(trips.value.find(t => t.sync && t.sync.id === id));
+          return;
+        }
+        if (msg.t !== 'state' || !msg.blob) return;
+        try {
+          const incoming = await decryptTrip(msg.blob, key);
+          const itemsReceived = tripItemCount(incoming);
+          const merged = mergeTrip(incoming);
+          if (!merged.sync) { merged.sync = { id, key }; saveTrips(); }
+          if (tripItemCount(merged) > itemsReceived) broadcastTrip(merged);
+          const waiter = syncJoinWaiters.get(id);
+          if (waiter) waiter(merged);
+        } catch (e) {}  // garbage or wrong-key frame — AES-GCM auth failed, ignore
+      };
+      ws.onclose = () => {
+        syncSockets.delete(id);
+        setSyncStatus(id, { live: false, peers: 0 });
+        // Reconnect with backoff while the app is visible and the trip exists
+        if (document.hidden || !trips.value.some(t => t.sync && t.sync.id === id)) return;
+        const delay = syncBackoff.get(id) || 2000;
+        syncBackoff.set(id, Math.min(delay * 2, 30000));
+        setTimeout(() => {
+          const t = trips.value.find(x => x.sync && x.sync.id === id);
+          if (t && !document.hidden) connectSync(t);
+        }, delay);
+      };
+      ws.onerror = () => { try { ws.close(); } catch (e) {} };
+    };
+
+    const closeSync = id => {
+      const ws = syncSockets.get(id);
+      if (ws) { try { ws.close(); } catch (e) {} }
+    };
+
+    const syncBadge = trip => {
+      if (!trip.sync || !SYNC_API || !syncSupported) return null;
+      const s = syncStatus.value[trip.sync.id];
+      if (s && s.live && s.peers > 0) return { cls: 'badge-live', label: '🟢 live' };
+      if (s && s.live) return { cls: 'badge-gray', label: '⚪ waiting' };
+      return { cls: 'badge-gray', label: '⚠ offline' };
+    };
+
+    // Shared by both import paths: offer to join, notify, tell peers.
+    const finishImport = trip => {
+      if (currentUser.value && !trip.users.some(u => u.email === currentUser.value.email)) {
+        if (confirm(`You're not a participant of "${trip.title}" yet. Join as ${currentUser.value.email}?`)) {
+          trip.users.push({ email: currentUser.value.email });
+          saveTrips();
+          broadcastTrip(trip);
+        }
+      }
+      alert(currentUser.value
+        ? `Trip "${trip.title}" imported ✓`
+        : `Trip "${trip.title}" imported ✓ — set up with the email you were invited as to see it.`);
+    };
+
     const handleIncomingShare = async () => {
+      const join = location.hash.match(/^#join=([A-Za-z0-9_-]{20,30})\.([A-Za-z0-9_-]+)$/);
+      if (join) {
+        history.replaceState(null, '', location.pathname + location.search);
+        const [, id, key] = join;
+        if (!SYNC_API || !syncSupported) {
+          alert('Live sync is not available here — ask for an offline share link instead.');
+          return;
+        }
+        let trip = trips.value.find(t => t.sync && t.sync.id === id);
+        if (!trip) {
+          // The sharer's device (online, in the room) sends the trip on our join.
+          const received = new Promise(res => syncJoinWaiters.set(id, res));
+          connectSync({ sync: { id, key } });
+          trip = await Promise.race([received, new Promise(res => setTimeout(() => res(null), 12000))]);
+          syncJoinWaiters.delete(id);
+          if (!trip) {
+            closeSync(id);
+            alert('Could not receive the trip. The person sharing must have Urunan open at the same time — ask them to open the trip and share again, or to send an offline link instead.');
+            return;
+          }
+        }
+        finishImport(trip);
+        return;
+      }
       const m = location.hash.match(/^#trip=(.+)$/);
       if (!m) return;
       history.replaceState(null, '', location.pathname + location.search);
       try {
         const trip = mergeTrip(await decodeTripShare(m[1]));
-        if (currentUser.value && !trip.users.some(u => u.email === currentUser.value.email)) {
-          if (confirm(`You're not a participant of "${trip.title}" yet. Join as ${currentUser.value.email}?`)) {
-            trip.users.push({ email: currentUser.value.email });
-            saveTrips();
-          }
-        }
-        alert(currentUser.value
-          ? `Trip "${trip.title}" imported ✓`
-          : `Trip "${trip.title}" imported ✓ — set up with the email you were invited as to see it.`);
+        if (trip.sync) broadcastTrip(trip);  // spread a legacy import over the live channel too
+        finishImport(trip);
       } catch (e) {
         alert('Could not import shared trip (' + e.message + ')');
       }
@@ -3215,13 +3424,23 @@ createApp({
     // (same-document navigation fires hashchange, not a page load)
     window.addEventListener('hashchange', handleIncomingShare);
 
+    // Live-sync lifecycle: connect all synced trips on load; drop the
+    // sockets while the tab is hidden (saves battery and relay time).
+    if (SYNC_API && syncSupported) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) for (const id of [...syncSockets.keys()]) closeSync(id);
+        else trips.value.filter(t => t.sync).forEach(connectSync);
+      });
+      trips.value.filter(t => t.sync).forEach(connectSync);
+    }
+
     return {
       view, currentUser, setupForm, tripForm, transactionForm,
       showAddTrip, showAddTransaction, showInstallBanner,
       myTrips, currentTrip, myPaid, mappedDebt,
       resetSplits, splitRemaining, isSplitInvalid,
-      shareModal, shareUrl, shareQrSvg, canNativeShare,
-      shareTrip, copyShareLink, nativeShare,
+      shareModal, shareUrl, shareQrSvg, shareLiveMode, canNativeShare,
+      shareTrip, shareOffline, copyShareLink, nativeShare, syncBadge,
       tripTotal, completeSetup, logout, dismissInstallBanner,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, confirmDeleteTransaction, settleTrip

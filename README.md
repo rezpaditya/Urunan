@@ -28,7 +28,24 @@ localStorage.
 - Share a trip between devices with a **link or QR code** — no server
   involved: the trip data travels inside the URL fragment and merges
   automatically on import (repeat imports never duplicate data)
+- Optional **live sync** through a zero-storage relay (see below): shared
+  trips update across devices in real time while both are online
 - Works offline; data persists in localStorage per device
+
+## Live sync (optional)
+
+Deploying the tiny WebSocket relay in [`server/`](server/) upgrades sharing:
+the share link becomes a short `#join=` URL (always QR-friendly), and once a
+friend has joined a trip, changes flow between devices automatically whenever
+you're online at the same time. The relay **stores nothing** — it only
+forwards end-to-end-encrypted snapshots between connected devices, so trip
+data still lives exclusively in each participant's browser. The AES key
+travels only in the share link's `#fragment`, which never reaches any server.
+
+See [`server/README.md`](server/README.md) for deployment (Google Cloud Run)
+and how to point the app at your relay. Without a relay configured, sharing
+falls back to the classic self-contained `#trip=` link, which also remains
+the fallback whenever the other person can't be online at the same time.
 
 ## Development
 
