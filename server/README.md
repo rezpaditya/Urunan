@@ -37,8 +37,18 @@ Anything typed in one terminal appears in the other; each also receives
 
 ## Deploy to Google Cloud Run
 
+CI does this automatically: the
+[`deploy-sync-server`](../.github/workflows/deploy-sync-server.yml) workflow
+deploys to the `urunan-sync` service in project `respa-dot-id`
+(europe-west1) whenever `server/**` changes on `main`, and can be run
+manually from the Actions tab. It authenticates with the `GCP_SA_KEY`
+repository secret (a service-account JSON key).
+
+Manual equivalent:
+
 ```bash
-gcloud run deploy urunan-sync --source . --region <region> \
+gcloud run deploy urunan-sync --source . --region europe-west1 \
+  --project respa-dot-id \
   --allow-unauthenticated --max-instances 1 --memory 256Mi \
   --timeout 3600 \
   --set-env-vars ALLOWED_ORIGINS=https://rezpaditya.github.io

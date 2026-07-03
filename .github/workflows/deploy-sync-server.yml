@@ -1,0 +1,54 @@
+name: Deploy sync relay to Cloud Run
+
+# Deploys server/ (the zero-storage live-sync WebSocket relay) to the
+# urunan-sync Cloud Run service in project respa-dot-id. Runs when the
+# server code changes on main, or manually via workflow_dispatch.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths: [ "server/**" ]
+
+concurrency:
+  group: deploy-sync-server
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: respa-dot-id
+  REGION: europe-west1
+  SERVICE: urunan-sync
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: deploy
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source server/ \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --allow-unauthenticated \
+            --max-instances 1 \
+            --memory 256Mi \
+            --timeout 3600 \
+            --set-env-vars ALLOWED_ORIGINS=https://rezpaditya.github.io \
+            --quiet
+
+      - name: service URL
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format 'value(status.url)')
+          echo "Service URL: $URL"
+          echo "SYNC_API value: wss://${URL#https://}"
+          curl --fail --silent "$URL/healthz"
