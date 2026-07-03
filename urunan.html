@@ -296,6 +296,16 @@ input, select { -webkit-appearance: none; appearance: none; }
   background: var(--gray-100); border-radius: 9999px; color: var(--gray-500);
 }
 
+/* ── Split allocation ─────────────────────── */
+.split-header { display: flex; align-items: center; justify-content: space-between; margin-top: 0.25rem; }
+.split-row { display: flex; align-items: center; gap: 0.5rem; }
+.split-name {
+  width: 30%; min-width: 0; font-size: 0.8125rem; color: var(--gray-600);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right;
+}
+.field-error { font-size: 0.75rem; color: var(--red); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Empty state ──────────────────────────── */
 .empty {
   display: flex; flex-direction: column; align-items: center;
@@ -483,8 +493,20 @@ input, select { -webkit-appearance: none; appearance: none; }
           <span class="input-prefix-sym">€</span>
           <input v-model.number="transactionForm.cost" class="input" type="number" min="0.01" step="any" required placeholder="0.00">
         </div>
-        <div class="field-hint">Split equally: €{{ perPersonCost }} per person ({{ currentTrip.users.length }} people)</div>
-        <button type="submit" class="btn btn-primary btn-lg" style="margin-top:0.25rem">Add Transaction</button>
+        <div class="split-header">
+          <span class="field-label" style="margin-bottom:0">Split between</span>
+          <button type="button" class="btn-ghost" style="font-size:0.75rem" @click="resetSplits">↺ Split evenly</button>
+        </div>
+        <div v-for="s in transactionForm.splits" :key="s.email" class="split-row">
+          <span class="split-name">{{ s.email.split('@')[0] }}</span>
+          <div class="input-prefix" style="flex:1">
+            <span class="input-prefix-sym">€</span>
+            <input v-model.number="s.cost" class="input" type="number" min="0" step="any" placeholder="0.00">
+          </div>
+        </div>
+        <span v-if="splitRemaining > 0.005" class="field-error">⚠️ €{{ splitRemaining.toFixed(2) }} left to allocate</span>
+        <span v-else-if="splitRemaining < -0.005" class="field-error">⚠️ Over-allocated by €{{ (-splitRemaining).toFixed(2) }}</span>
+        <button type="submit" :disabled="isSplitInvalid" class="btn btn-primary btn-lg" style="margin-top:0.25rem">Add Transaction</button>
       </form>
     </div>
 
@@ -532,7 +554,7 @@ input, select { -webkit-appearance: none; appearance: none; }
 
 </script>
 <script>
-const { createApp, reactive, computed, ref } = Vue;
+const { createApp, reactive, computed, ref, watch } = Vue;
 
 createApp({
   setup() {
@@ -546,7 +568,7 @@ createApp({
 
     const setupForm = reactive({ name: '', email: '' });
     const tripForm  = reactive({ title: '', text: '', participantInput: '', participants: [] });
-    const transactionForm = reactive({ email: '', title: '', cost: '' });
+    const transactionForm = reactive({ email: '', title: '', cost: '', splits: [] });
 
     // ── Persistence ────────────────────────────────────────────
     const saveTrips = () => localStorage.setItem('urunan_trips', JSON.stringify(trips.value));
@@ -631,6 +653,7 @@ createApp({
       currentTripId.value = id;
       showAddTransaction.value = false;
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
+      resetSplits();
       view.value = 'trip-detail';
     };
 
@@ -661,38 +684,62 @@ createApp({
         net[u.email] = paid - spent[u.email];
       });
 
+      // from_user owes to_user (from_user pays, to_user receives)
       const result = [];
-      trip.users.forEach(borrower => {
-        trip.users.forEach(lender => {
-          if (borrower.email === lender.email) return;
-          const amt = Math.min(net[borrower.email], -net[lender.email]);
+      trip.users.forEach(creditor => {
+        trip.users.forEach(debtor => {
+          if (creditor.email === debtor.email) return;
+          const amt = Math.min(net[creditor.email], -net[debtor.email]);
           if (amt > 0.005) {
-            result.push({ from_user: borrower, to_user: lender, amount: amt });
-            net[borrower.email] -= amt;
-            net[lender.email]  += amt;
+            result.push({ from_user: debtor, to_user: creditor, amount: amt });
+            net[creditor.email] -= amt;
+            net[debtor.email]  += amt;
           }
         });
       });
       return result;
     });
 
-    const perPersonCost = computed(() => {
-      if (!currentTrip.value || !transactionForm.cost) return '0.00';
-      return (parseFloat(transactionForm.cost) / currentTrip.value.users.length).toFixed(2);
+    // ── Split allocation ───────────────────────────────────────
+    // Even split that always sums exactly to the total: everyone gets
+    // the floored cent share, the last person absorbs the remainder.
+    const resetSplits = () => {
+      const trip = currentTrip.value;
+      if (!trip) { transactionForm.splits = []; return; }
+      const cost = parseFloat(transactionForm.cost) || 0;
+      const n = trip.users.length;
+      const per = Math.floor((cost / n) * 100) / 100;
+      transactionForm.splits = trip.users.map((u, i) => ({
+        email: u.email,
+        cost: i === n - 1 ? Math.round((cost - per * (n - 1)) * 100) / 100 : per
+      }));
+    };
+
+    // Changing the total re-splits evenly; manual edits stay until then
+    watch(() => transactionForm.cost, resetSplits);
+
+    const splitRemaining = computed(() => {
+      const cost = parseFloat(transactionForm.cost) || 0;
+      const sum = transactionForm.splits.reduce((s, x) => s + (parseFloat(x.cost) || 0), 0);
+      return cost - sum;
     });
+
+    const isSplitInvalid = computed(() => Math.abs(splitRemaining.value) > 0.005);
 
     const addTransaction = () => {
       const trip = currentTrip.value;
-      if (!trip) return;
+      if (!trip || isSplitInvalid.value) return;
       const cost = parseFloat(transactionForm.cost);
-      const per  = parseFloat((cost / trip.users.length).toFixed(2));
       trip.transactions.push({
         id: Date.now(),
         title:  transactionForm.title.trim(),
         email:  transactionForm.email,
         cost,
         transaction_date: new Date().toISOString(),
-        details: trip.users.map(u => ({ email: u.email, cost: per }))
+        details: transactionForm.splits.map(s => ({
+          email: s.email,
+          cost: Math.round((parseFloat(s.cost) || 0) * 100) / 100
+        }))
       });
       saveTrips();
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
@@ -714,7 +761,8 @@ createApp({
     return {
       view, currentUser, setupForm, tripForm, transactionForm,
       showAddTrip, showAddTransaction, showInstallBanner,
-      myTrips, currentTrip, myPaid, mappedDebt, perPersonCost,
+      myTrips, currentTrip, myPaid, mappedDebt,
+      resetSplits, splitRemaining, isSplitInvalid,
       tripTotal, completeSetup, logout, dismissInstallBanner,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, confirmDeleteTransaction, settleTrip
