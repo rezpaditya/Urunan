@@ -1,44 +1,48 @@
-# Urunan
+# Urunan 🧾
 ### _Split your bills_
 
-[![Build Status](https://github.com/rezpaditya/Urunan/actions/workflows/docker-deploy.yml/badge.svg)](https://github.com/rezpaditya/Urunan/actions)
+Urunan is a bill-splitting app for trips and group activities: create a trip,
+invite participants, record who paid what, and see who owes whom. Settle the
+trip when everyone is square.
 
-![image](https://github.com/user-attachments/assets/ac23ee49-98e4-4d3e-9392-499a1f587cec)
+**Live app: https://rezpaditya.github.io/Urunan/**
 
+The entire app is a single self-contained file — [`urunan.html`](urunan.html).
+No server, no build step, no dependencies: Vue 3 and a QR code generator are
+inlined, styling is hand-written CSS, and all data lives in your browser's
+localStorage.
 
-### Development setup
-```sh
-cd backend
-pipenv install
-uvicorn run backend.main:app --reload
+## Using the app
 
-cd frontend
-npm install
-npm run dev
-```
+- **On your phone:** open the live URL in Safari/Chrome, then *Share → Add to
+  Home Screen* to get a full-screen app icon.
+- **Offline / no hosting:** download `urunan.html` and open it in any browser.
+  Everything works from a `file://` URL too.
 
-### Backend
-- [x] Trip CRUD
-- [x] Trans CRUD
-- [x] Report logic
-- [x] Auth0 integration
+### Features
 
-### Frontend
-- [x] Login page
-- [x] Trip page
-- [x] Transaction page
-- [x] Report page
-- [x] Auth0 integration
+- Trips with multiple participants
+- Transactions with custom payment splits (defaults to an even split,
+  adjustable per person, validated against the total)
+- Automatic debt settlement summary — minimal set of "who pays whom"
+- Share a trip between devices with a **link or QR code** — no server
+  involved: the trip data travels inside the URL fragment and merges
+  automatically on import (repeat imports never duplicate data)
+- Works offline; data persists in localStorage per device
 
-### CI/CD
-- [x] Setup server
-- [x] Github action
-- [x] Containerize backend
-- [x] Deploy backend
-- [x] Containerize frontend
-- [x] Deploy frontend
-- [ ] Setup docker-compose
-- [ ] E2E Tests
+## Development
 
-#### Live demo: https://urunan.respa.id
-#### Swagger API: https://urunan.respa.id:8080/docs
+Edit `urunan.html`, open it in a browser, refresh. That's the whole loop.
+
+## Deployment
+
+Pushing a change to `urunan.html` on `main` triggers the
+[`github-pages`](.github/workflows/github-pages.yml) workflow, which copies it
+to the `gh-pages` branch as `index.html`; GitHub Pages publishes from there.
+Manual alternative: commit the file to `gh-pages` yourself.
+
+## Archived
+
+The original implementation — a Vue 3 + Vite SPA with a FastAPI/SQLAlchemy
+backend, Auth0 authentication, and Docker-based deployment — lives in
+[`archived/`](archived/) for reference. It is no longer deployed or maintained.
