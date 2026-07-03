@@ -1,44 +1,43 @@
-name: Deploy Urunan to GitHub Pages
+name: Publish urunan.html to GitHub Pages
+
+# Copies urunan.html from main to the gh-pages branch as index.html.
+# GitHub Pages serves the site from gh-pages (the github-pages
+# environment only allows deployments from that branch), and its
+# built-in "pages build and deployment" workflow publishes the push.
 
 on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
-    paths: [ "urunan.html", ".github/workflows/github-pages.yml" ]
+    paths: [ "urunan.html" ]
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: github-pages
+  group: publish-pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: main
 
-      - name: prepare site
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+
+      - name: sync and push
         run: |
-          mkdir -p _site
-          cp urunan.html _site/index.html
-
-      - name: setup pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          cp main/urunan.html site/index.html
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && echo "No changes to publish" && exit 0
+          git commit -m "Publish urunan.html from main @ ${GITHUB_SHA::7}"
+          git push
