@@ -42,7 +42,13 @@ CI does this automatically: the
 deploys to the `urunan-sync` service in project `respa-dot-id`
 (europe-west1) whenever `server/**` changes on `main`, and can be run
 manually from the Actions tab. It authenticates with the `GCP_SA_KEY`
-repository secret (a service-account JSON key).
+repository secret — a service-account JSON key that must be added to
+**this repository** (Settings → Secrets and variables → Actions);
+secrets stored in other repositories are not visible here.
+
+After the first deploy, take the service URL from the workflow's
+"service URL" step (or `gcloud run services describe urunan-sync`) and
+set `SYNC_API` at the top of `urunan.html` to its `wss://` form.
 
 Manual equivalent:
 

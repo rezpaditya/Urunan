@@ -7,9 +7,7 @@ name: Deploy sync relay to Cloud Run
 on:
   workflow_dispatch:
   push:
-    # TEMP: deploy from the feature branch once so the service URL can be
-    # baked into urunan.html before merge; remove after first deploy.
-    branches: [ "main", "claude/api-data-sync-devices-hum5ev" ]
+    branches: [ "main" ]
     paths: [ "server/**", ".github/workflows/deploy-sync-server.yml" ]
 
 concurrency:
