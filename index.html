@@ -467,13 +467,13 @@ input, select { -webkit-appearance: none; appearance: none; }
       </div>
       <div v-for="d in mappedDebt" :key="d.from_user.email + d.to_user.email" class="debt-line">
         <span v-if="d.from_user.email === currentUser.email" class="debt-owe">
-          ↑ You owe {{ d.to_user.email }}: €{{ d.amount.toFixed(2) }}
+          ↑ You owe {{ displayName(d.to_user.email) }}: €{{ d.amount.toFixed(2) }}
         </span>
         <span v-else-if="d.to_user.email === currentUser.email" class="debt-recv">
-          ↓ {{ d.from_user.email }} owes you: €{{ d.amount.toFixed(2) }}
+          ↓ {{ displayName(d.from_user.email) }} owes you: €{{ d.amount.toFixed(2) }}
         </span>
         <span v-else class="debt-other">
-          {{ d.from_user.email }} → {{ d.to_user.email }}: €{{ d.amount.toFixed(2) }}
+          {{ displayName(d.from_user.email) }} → {{ displayName(d.to_user.email) }}: €{{ d.amount.toFixed(2) }}
         </span>
       </div>
       <button v-if="!currentTrip.is_resolved && currentTrip.transactions.length > 0"
@@ -486,7 +486,7 @@ input, select { -webkit-appearance: none; appearance: none; }
     <div class="card" style="margin-bottom:0.875rem">
       <div class="section-title mb-2">👥 Participants</div>
       <div class="chip-list">
-        <span v-for="u in currentTrip.users" :key="u.email" class="participant-chip">{{ u.email }}</span>
+        <span v-for="u in currentTrip.users" :key="u.email" class="participant-chip" :title="u.email">{{ displayName(u.email) }}</span>
       </div>
     </div>
 
@@ -506,7 +506,7 @@ input, select { -webkit-appearance: none; appearance: none; }
       <form class="form" @submit.prevent="addTransaction">
         <select v-model="transactionForm.email" class="input" required>
           <option value="" disabled>-- Who paid? --</option>
-          <option v-for="u in currentTrip.users" :key="u.email" :value="u.email">{{ u.email }}</option>
+          <option v-for="u in currentTrip.users" :key="u.email" :value="u.email">{{ displayName(u.email) }}</option>
         </select>
         <input v-model="transactionForm.title" class="input" type="text" required placeholder="What was it for?">
         <div class="input-prefix">
@@ -518,7 +518,7 @@ input, select { -webkit-appearance: none; appearance: none; }
           <button type="button" class="btn-ghost" style="font-size:0.75rem" @click="resetSplits">↺ Split evenly</button>
         </div>
         <div v-for="s in transactionForm.splits" :key="s.email" class="split-row">
-          <span class="split-name">{{ s.email.split('@')[0] }}</span>
+          <span class="split-name" :title="s.email">{{ displayName(s.email) }}</span>
           <div class="input-prefix" style="flex:1">
             <span class="input-prefix-sym">€</span>
             <input v-model.number="s.cost" class="input" type="number" min="0" step="any" placeholder="0.00">
@@ -542,10 +542,10 @@ input, select { -webkit-appearance: none; appearance: none; }
           <span class="tx-name">{{ tx.title }}</span>
           <span class="tx-amount">€{{ tx.cost.toFixed(2) }}</span>
         </div>
-        <div class="tx-payer">Paid by {{ tx.email }}</div>
+        <div class="tx-payer">Paid by {{ displayName(tx.email) }}</div>
         <div class="tx-splits">
-          <span v-for="d in tx.details" :key="d.email" class="tx-split">
-            {{ d.email.split('@')[0] }}: €{{ d.cost.toFixed(2) }}
+          <span v-for="d in tx.details" :key="d.email" class="tx-split" :title="d.email">
+            {{ displayName(d.email) }}: €{{ d.cost.toFixed(2) }}
           </span>
         </div>
       </div>
@@ -2992,6 +2992,22 @@ createApp({
 
     const tripTotal = t => t.transactions.reduce((s, tx) => s + tx.cost, 0);
 
+    // Visual-only: turn an email (the stable id) into a friendly display name.
+    // The current user shows their real name; everyone else is derived from the
+    // email's local part. Email stays the identifier everywhere in the data.
+    const displayName = email => {
+      if (!email) return '';
+      const u = currentUser.value;
+      if (u && u.name && email === u.email) return u.name;
+      const local = String(email).split('@')[0];
+      const pretty = local
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      return pretty || local;
+    };
+
     const addParticipant = () => {
       const email = tripForm.participantInput.trim().toLowerCase();
       if (!email) return;
@@ -3497,7 +3513,7 @@ createApp({
       shareTrip, copyShareLink, nativeShare,
       syncAvailable, currentTripSynced, currentSyncState, syncChip, syncUrl, syncQrSvg,
       enableSyncCurrent, syncNowCurrent, disableSyncCurrent, copySyncLink, shareSyncLink,
-      tripTotal, completeSetup, logout, dismissInstallBanner,
+      tripTotal, displayName, completeSetup, logout, dismissInstallBanner,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, confirmDeleteTransaction, settleTrip
     };
