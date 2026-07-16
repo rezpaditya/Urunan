@@ -286,6 +286,7 @@ input, select { -webkit-appearance: none; appearance: none; }
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
 .tx-body { flex: 1; min-width: 0; }
+.tx-actions { display: flex; flex-direction: column; gap: 0.25rem; flex-shrink: 0; }
 .tx-row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
 .tx-name { font-weight: 500; font-size: 0.9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tx-amount { font-weight: 600; font-size: 0.9375rem; color: var(--gray-700); flex-shrink: 0; }
@@ -497,7 +498,7 @@ input, select { -webkit-appearance: none; appearance: none; }
     </div>
 
     <!-- Add transaction toggle (only if not settled) -->
-    <button v-if="!currentTrip.is_resolved" class="btn-add" @click="showAddTransaction = !showAddTransaction">
+    <button v-if="!currentTrip.is_resolved" class="btn-add" @click="toggleAddTransaction">
       {{ showAddTransaction ? '✕ Cancel' : '+ Add Transaction' }}
     </button>
 
@@ -537,19 +538,55 @@ input, select { -webkit-appearance: none; appearance: none; }
     </div>
 
     <div v-for="tx in [...currentTrip.transactions].reverse()" :key="tx.id" class="tx-card">
-      <div class="tx-body">
-        <div class="tx-row">
-          <span class="tx-name">{{ tx.title }}</span>
-          <span class="tx-amount">€{{ tx.cost.toFixed(2) }}</span>
+      <!-- Inline edit form -->
+      <form v-if="editingTxId === tx.id" class="form" style="flex:1;min-width:0" @submit.prevent="saveEditTransaction">
+        <select v-model="transactionForm.email" class="input" required>
+          <option value="" disabled>-- Who paid? --</option>
+          <option v-for="u in currentTrip.users" :key="u.email" :value="u.email">{{ displayName(u.email) }}</option>
+        </select>
+        <input v-model="transactionForm.title" class="input" type="text" required placeholder="What was it for?">
+        <div class="input-prefix">
+          <span class="input-prefix-sym">€</span>
+          <input v-model.number="transactionForm.cost" class="input" type="number" min="0.01" step="any" required placeholder="0.00">
         </div>
-        <div class="tx-payer">Paid by {{ displayName(tx.email) }}</div>
-        <div class="tx-splits">
-          <span v-for="d in tx.details" :key="d.email" class="tx-split" :title="d.email">
-            {{ displayName(d.email) }}: €{{ d.cost.toFixed(2) }}
-          </span>
+        <div class="split-header">
+          <span class="field-label" style="margin-bottom:0">Split between</span>
+          <button type="button" class="btn-ghost" style="font-size:0.75rem" @click="resetSplits">↺ Split evenly</button>
         </div>
-      </div>
-      <button v-if="!currentTrip.is_resolved" class="btn-icon" @click="confirmDeleteTransaction(tx.id)">🗑</button>
+        <div v-for="s in transactionForm.splits" :key="s.email" class="split-row">
+          <span class="split-name" :title="s.email">{{ displayName(s.email) }}</span>
+          <div class="input-prefix" style="flex:1">
+            <span class="input-prefix-sym">€</span>
+            <input v-model.number="s.cost" class="input" type="number" min="0" step="any" placeholder="0.00">
+          </div>
+        </div>
+        <span v-if="splitRemaining > 0.005" class="field-error">⚠️ €{{ splitRemaining.toFixed(2) }} left to allocate</span>
+        <span v-else-if="splitRemaining < -0.005" class="field-error">⚠️ Over-allocated by €{{ (-splitRemaining).toFixed(2) }}</span>
+        <div class="modal-actions" style="margin-top:0.25rem">
+          <button type="submit" :disabled="isSplitInvalid" class="btn btn-primary">Save changes</button>
+          <button type="button" class="btn btn-secondary" @click="cancelEditTransaction">Cancel</button>
+        </div>
+      </form>
+
+      <!-- View mode -->
+      <template v-else>
+        <div class="tx-body">
+          <div class="tx-row">
+            <span class="tx-name">{{ tx.title }}</span>
+            <span class="tx-amount">€{{ tx.cost.toFixed(2) }}</span>
+          </div>
+          <div class="tx-payer">Paid by {{ displayName(tx.email) }}</div>
+          <div class="tx-splits">
+            <span v-for="d in tx.details" :key="d.email" class="tx-split" :title="d.email">
+              {{ displayName(d.email) }}: €{{ d.cost.toFixed(2) }}
+            </span>
+          </div>
+        </div>
+        <div v-if="!currentTrip.is_resolved" class="tx-actions">
+          <button class="btn-icon" title="Edit" @click="startEditTransaction(tx)">✏️</button>
+          <button class="btn-icon" title="Delete" @click="confirmDeleteTransaction(tx.id)">🗑</button>
+        </div>
+      </template>
     </div>
 
   </div>
@@ -2925,7 +2962,7 @@ var qrcode = function() {
 
 </script>
 <script>
-const { createApp, reactive, computed, ref, watch } = Vue;
+const { createApp, reactive, computed, ref, watch, nextTick } = Vue;
 
 // Cloud sync relay base URL (see sync-server/). Empty string disables the
 // sync feature entirely and hides all of its UI, so a fork works untouched.
@@ -2939,6 +2976,7 @@ createApp({
     const currentTripId = ref(null);
     const showAddTrip = ref(false);
     const showAddTransaction = ref(false);
+    const editingTxId = ref(null);          // id of the transaction being edited, or null
     const showInstallBanner = ref(false);
 
     const setupForm = reactive({ name: '', email: '' });
@@ -3043,6 +3081,7 @@ createApp({
     const openTrip = id => {
       currentTripId.value = id;
       showAddTransaction.value = false;
+      editingTxId.value = null;
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
       resetSplits();
       view.value = 'trip-detail';
@@ -3107,8 +3146,14 @@ createApp({
       }));
     };
 
-    // Changing the total re-splits evenly; manual edits stay until then
-    watch(() => transactionForm.cost, resetSplits);
+    // Changing the total re-splits evenly; manual edits stay until then.
+    // Suppressed briefly while an edit form is being populated so the
+    // transaction's saved allocation isn't clobbered by an even resplit.
+    let suppressResetSplits = false;
+    watch(() => transactionForm.cost, () => {
+      if (suppressResetSplits) return;
+      resetSplits();
+    });
 
     const splitRemaining = computed(() => {
       const cost = parseFloat(transactionForm.cost) || 0;
@@ -3137,6 +3182,70 @@ createApp({
       maybeSync(trip.id);
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
       showAddTransaction.value = false;
+    };
+
+    // ── Edit transaction ───────────────────────────────────────
+    // Open the add form for a brand-new transaction (and leave any edit
+    // in progress), keeping the add and edit forms mutually exclusive so
+    // they never both drive the shared transactionForm at once.
+    const toggleAddTransaction = () => {
+      editingTxId.value = null;
+      showAddTransaction.value = !showAddTransaction.value;
+      if (showAddTransaction.value) {
+        Object.assign(transactionForm, { email: '', title: '', cost: '' });
+        resetSplits();
+      }
+    };
+
+    // Populate the shared form from an existing transaction. Splits are
+    // rebuilt over the trip's *current* members, so anyone added since the
+    // transaction was recorded shows up (defaulting to €0) and the whole
+    // allocation can be redone; members already in the transaction keep
+    // their saved share.
+    const startEditTransaction = tx => {
+      const trip = currentTrip.value;
+      if (!trip || trip.is_resolved) return;
+      showAddTransaction.value = false;
+      editingTxId.value = tx.id;
+      suppressResetSplits = true;
+      Object.assign(transactionForm, {
+        email: tx.email,
+        title: tx.title,
+        cost: tx.cost
+      });
+      const saved = {};
+      (tx.details || []).forEach(d => { saved[d.email] = d.cost; });
+      transactionForm.splits = trip.users.map(u => ({
+        email: u.email,
+        cost: saved[u.email] != null ? saved[u.email] : 0
+      }));
+      nextTick(() => { suppressResetSplits = false; });
+    };
+
+    const cancelEditTransaction = () => {
+      editingTxId.value = null;
+      Object.assign(transactionForm, { email: '', title: '', cost: '' });
+    };
+
+    const saveEditTransaction = () => {
+      const trip = currentTrip.value;
+      if (!trip || editingTxId.value == null || isSplitInvalid.value) return;
+      const tx = trip.transactions.find(t => t.id === editingTxId.value);
+      if (!tx) { editingTxId.value = null; return; }
+      tx.title = transactionForm.title.trim();
+      tx.email = transactionForm.email;
+      tx.cost  = parseFloat(transactionForm.cost);
+      tx.details = transactionForm.splits.map(s => ({
+        email: s.email,
+        cost: Math.round((parseFloat(s.cost) || 0) * 100) / 100
+      }));
+      // Stamp the edit so a synced copy on another device can tell this
+      // version is newer than the one it already has (see mergeTrip).
+      tx.updated_at = new Date().toISOString();
+      saveTrips();
+      maybeSync(trip.id);
+      editingTxId.value = null;
+      Object.assign(transactionForm, { email: '', title: '', cost: '' });
     };
 
     const confirmDeleteTransaction = txId => {
@@ -3246,7 +3355,17 @@ createApp({
           if (!existing.users.some(x => x.email === u.email)) existing.users.push(u);
         });
         incoming.transactions.forEach(tx => {
-          if (!existing.transactions.some(x => x.id === tx.id)) existing.transactions.push(tx);
+          const idx = existing.transactions.findIndex(x => x.id === tx.id);
+          if (idx === -1) {
+            existing.transactions.push(tx);
+          } else if ((tx.updated_at || '') > (existing.transactions[idx].updated_at || '')) {
+            // Same transaction on both sides: keep the more recently edited
+            // copy. Transactions from before edit support have no
+            // updated_at, so an edited copy (which does) always wins and two
+            // un-edited copies tie — leaving the local one in place, exactly
+            // as before this field existed.
+            existing.transactions[idx] = tx;
+          }
         });
         existing.is_resolved = existing.is_resolved || incoming.is_resolved;
         // Union transaction tombstones so a deletion on one device isn't
@@ -3506,7 +3625,7 @@ createApp({
 
     return {
       view, currentUser, setupForm, tripForm, transactionForm,
-      showAddTrip, showAddTransaction, showInstallBanner,
+      showAddTrip, showAddTransaction, editingTxId, showInstallBanner,
       myTrips, currentTrip, myPaid, mappedDebt,
       resetSplits, splitRemaining, isSplitInvalid,
       shareModal, shareUrl, shareQrSvg, canNativeShare,
@@ -3515,7 +3634,9 @@ createApp({
       enableSyncCurrent, syncNowCurrent, disableSyncCurrent, copySyncLink, shareSyncLink,
       tripTotal, displayName, completeSetup, logout, dismissInstallBanner,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
-      addTransaction, confirmDeleteTransaction, settleTrip
+      addTransaction, toggleAddTransaction, startEditTransaction,
+      cancelEditTransaction, saveEditTransaction,
+      confirmDeleteTransaction, settleTrip
     };
   }
 }).mount('#app');
