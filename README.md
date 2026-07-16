@@ -28,7 +28,45 @@ localStorage.
 - Share a trip between devices with a **link or QR code** — no server
   involved: the trip data travels inside the URL fragment and merges
   automatically on import (repeat imports never duplicate data)
+- **Optional live device sync** — enable it on a trip and changes flow
+  both ways automatically across your devices via a tiny relay you host
+  (see below). Off by default; the app is fully usable without it.
 - Works offline; data persists in localStorage per device
+
+## Optional: cross-device sync backend
+
+Sync is **off unless you point the app at a relay** and is disabled entirely
+when `SYNC_BASE_URL` (near the top of `urunan.html`) is left empty — forks work
+untouched. The relay is a stateless rendezvous, not a database:
+
+- It **stores nothing**. Payloads sit in memory for a few minutes so the other
+  device can pick them up, then are evicted. Your devices' localStorage stays
+  the sole home of your data.
+- It **can't read your data**. Each payload is gzipped and AES-GCM encrypted in
+  the browser; the key lives only in the sync link, so the relay only ever sees
+  ciphertext.
+- It's one standard-library Python script — see
+  [`sync-server/`](sync-server/) for the code and deploy steps.
+
+Deploy to Google Cloud Run (free tier, needs a GCP project with billing
+enabled), then paste the service URL into `SYNC_BASE_URL`:
+
+```bash
+cd sync-server
+gcloud services enable run.googleapis.com
+gcloud run deploy urunan-sync --source . --region <your-region> --allow-unauthenticated
+```
+
+**How it syncs:** enabling sync on a trip mints a random room id + encryption
+key; other devices join by opening the `#sync=…` link or scanning its QR. Each
+sync pulls the room, merges it locally, and pushes the merged result back, so
+devices converge without duplicating anything.
+
+**Limitations:** the relay only holds the most recent push per room, in memory —
+if it restarts or scales to zero the room empties, but no data is lost because
+each device re-seeds it on the next sync. Deleting an entire **trip** is
+local-only and does not propagate (deleting a single transaction does, via
+tombstones).
 
 ## Development
 

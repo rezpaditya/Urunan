@@ -1,0 +1,1 @@
+# No third-party dependencies — server.py uses the Python standard library only.

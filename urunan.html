@@ -452,6 +452,9 @@ input, select { -webkit-appearance: none; appearance: none; }
       <button class="btn-ghost" @click="view = 'trips'">← Back</button>
       <span class="back-bar-title">{{ currentTrip.title }}</span>
       <span v-if="currentTrip.is_resolved" class="badge badge-settled">Settled</span>
+      <span v-if="syncAvailable && currentTripSynced" class="badge"
+            :title="'Device sync: ' + currentSyncState"
+            style="flex-shrink:0;font-size:0.7rem">{{ syncChip }}</span>
       <button class="btn-ghost" style="flex-shrink:0" @click="shareTrip">📤 Share</button>
     </div>
 
@@ -566,6 +569,36 @@ input, select { -webkit-appearance: none; appearance: none; }
       <div class="modal-actions">
         <button class="btn btn-primary" @click="copyShareLink">📋 Copy link</button>
         <button v-if="canNativeShare" class="btn btn-secondary" @click="nativeShare">📱 Share via…</button>
+      </div>
+
+      <!-- Device sync (only when a relay is configured) -->
+      <div v-if="syncAvailable" style="border-top:1px solid var(--gray-200,#e5e7eb);margin-top:0.85rem;padding-top:0.75rem">
+        <div class="section-title" style="margin-bottom:0.25rem">🔄 Sync across devices</div>
+        <template v-if="!currentTripSynced">
+          <p class="field-hint" style="margin-top:0">
+            Keep this trip in sync on your other devices — changes flow both ways
+            automatically. The relay only holds an end-to-end encrypted copy briefly
+            to pass it along; it can't read your data and never stores it.
+          </p>
+          <button class="btn btn-primary" @click="enableSyncCurrent">Enable device sync</button>
+        </template>
+        <template v-else>
+          <p class="field-hint" style="margin-top:0">
+            Open this link (or scan the QR) on another device to keep it in sync.
+            Status: <b>{{ currentSyncState }}</b>.
+          </p>
+          <div v-if="syncQrSvg" class="qr-box" v-html="syncQrSvg"></div>
+          <input class="input" readonly :value="syncUrl" @focus="$event.target.select()" style="font-size:0.75rem">
+          <div class="modal-actions">
+            <button class="btn btn-primary" @click="copySyncLink">📋 Copy sync link</button>
+            <button v-if="canNativeShare" class="btn btn-secondary" @click="shareSyncLink">📱 Share via…</button>
+            <button class="btn btn-secondary" @click="syncNowCurrent">🔄 Sync now</button>
+            <button class="btn btn-ghost" @click="disableSyncCurrent">Turn off</button>
+          </div>
+        </template>
+      </div>
+
+      <div class="modal-actions">
         <button class="btn btn-secondary" @click="shareModal = false">Close</button>
       </div>
     </div>
@@ -2894,6 +2927,10 @@ var qrcode = function() {
 <script>
 const { createApp, reactive, computed, ref, watch } = Vue;
 
+// Cloud sync relay base URL (see sync-server/). Empty string disables the
+// sync feature entirely and hides all of its UI, so a fork works untouched.
+const SYNC_BASE_URL = '';
+
 createApp({
   setup() {
     const view = ref('setup');
@@ -2993,6 +3030,7 @@ createApp({
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
       resetSplits();
       view.value = 'trip-detail';
+      if (isTripSynced(id)) syncNow(id);
     };
 
     // ── Trip Detail ────────────────────────────────────────────
@@ -3080,6 +3118,7 @@ createApp({
         }))
       });
       saveTrips();
+      maybeSync(trip.id);
       Object.assign(transactionForm, { email: '', title: '', cost: '' });
       showAddTransaction.value = false;
     };
@@ -3087,13 +3126,19 @@ createApp({
     const confirmDeleteTransaction = txId => {
       if (!confirm('Delete this transaction?')) return;
       const trip = currentTrip.value;
-      if (trip) { trip.transactions = trip.transactions.filter(tx => tx.id !== txId); saveTrips(); }
+      if (trip) {
+        trip.transactions = trip.transactions.filter(tx => tx.id !== txId);
+        (trip.deleted_tx_ids || (trip.deleted_tx_ids = [])).push(txId);
+        saveTrips();
+        maybeSync(trip.id);
+      }
     };
 
     const settleTrip = () => {
       if (!confirm('Mark as settled? No more transactions can be added.')) return;
       currentTrip.value.is_resolved = true;
       saveTrips();
+      maybeSync(currentTrip.value.id);
     };
 
     // ── Share link + QR sync ───────────────────────────────────
@@ -3157,6 +3202,8 @@ createApp({
       } catch (e) {
         shareQrSvg.value = '';  // trip too large for QR capacity
       }
+      if (isTripSynced(currentTrip.value.id)) refreshSyncShare(currentTrip.value.id);
+      else { syncUrl.value = ''; syncQrSvg.value = ''; }
       shareModal.value = true;
     };
 
@@ -3186,12 +3233,238 @@ createApp({
           if (!existing.transactions.some(x => x.id === tx.id)) existing.transactions.push(tx);
         });
         existing.is_resolved = existing.is_resolved || incoming.is_resolved;
+        // Union transaction tombstones so a deletion on one device isn't
+        // resurrected by an older copy from another (guarded for legacy
+        // payloads that predate the field).
+        (incoming.deleted_tx_ids || []).forEach(id => {
+          existing.deleted_tx_ids = existing.deleted_tx_ids || [];
+          if (!existing.deleted_tx_ids.includes(id)) existing.deleted_tx_ids.push(id);
+        });
+      }
+      const target = trips.value.find(t => t.id === incoming.id);
+      // Apply the tombstone set: drop any transaction marked deleted.
+      if (target.deleted_tx_ids && target.deleted_tx_ids.length) {
+        const dead = new Set(target.deleted_tx_ids);
+        target.transactions = target.transactions.filter(tx => !dead.has(tx.id));
       }
       saveTrips();
-      return trips.value.find(t => t.id === incoming.id);
+      return target;
     };
 
+    // ── Cloud sync (optional relay) ────────────────────────────
+    // Opt-in per trip. Enabling picks a random room id + AES-GCM key;
+    // other devices join via a #sync=<room>.<key> link/QR. Each sync
+    // pulls the room, mergeTrip()s it in, then pushes the merged result
+    // back — devices converge while the relay only ever holds gzipped,
+    // encrypted bytes it can't read and never persists. Sync creds live
+    // in a separate localStorage key so they never leak into #trip=
+    // shares or the relayed payload.
+    const syncAvailable = !!SYNC_BASE_URL;
+    const syncStates = reactive({});   // tripId -> idle|syncing|synced|error|offline
+    const syncInFlight = {};           // tripId -> bool re-entrancy guard
+    const syncDebounce = {};           // tripId -> timeout handle
+    const syncUrl = ref('');
+    const syncQrSvg = ref('');
+
+    // Reactive so isTripSynced()/currentTripSynced update the UI when a
+    // trip's sync is enabled or disabled. { [tripId]: { room, key, lastSynced } }
+    const syncMeta = reactive((() => {
+      try { return JSON.parse(localStorage.getItem('urunan_sync')) || {}; }
+      catch (e) { return {}; }
+    })());
+    const saveSyncMeta = () => localStorage.setItem('urunan_sync', JSON.stringify(syncMeta));
+    const tripSyncMeta = tripId => syncMeta[String(tripId)] || null;
+    const isTripSynced = tripId => !!tripSyncMeta(tripId);
+    const setSyncState = (tripId, s) => { syncStates[String(tripId)] = s; };
+
+    // Crypto — reuse b64u + gzip helpers from the share section.
+    const genRoomId = () => b64uFromBytes(crypto.getRandomValues(new Uint8Array(16)));
+    const genKey = async () => {
+      const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 128 }, true, ['encrypt', 'decrypt']);
+      return b64uFromBytes(new Uint8Array(await crypto.subtle.exportKey('raw', k)));
+    };
+    const importKey = keyB64u => crypto.subtle.importKey(
+      'raw', bytesFromB64u(keyB64u), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    const sealTrip = async (trip, keyB64u) => {
+      const key = await importKey(keyB64u);
+      const raw = new TextEncoder().encode(JSON.stringify(trip));
+      const gz = !!window.CompressionStream;
+      const body = gz ? await gzip(raw) : raw;
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, body));
+      const out = new Uint8Array(1 + iv.length + ct.length);
+      out[0] = gz ? 1 : 0;
+      out.set(iv, 1);
+      out.set(ct, 1 + iv.length);
+      return out;
+    };
+    const openSealed = async (bytes, keyB64u) => {
+      const key = await importKey(keyB64u);
+      const gz = bytes[0] === 1;
+      const iv = bytes.slice(1, 13);
+      const ct = bytes.slice(13);
+      const body = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct));
+      const raw = gz ? await gunzip(body) : body;
+      const trip = JSON.parse(new TextDecoder().decode(raw));
+      if (!trip || typeof trip !== 'object' || !trip.id ||
+          !Array.isArray(trip.users) || !Array.isArray(trip.transactions))
+        throw new Error('not a valid trip');
+      return trip;
+    };
+
+    // Relay I/O.
+    const relayGet = async room => {
+      const r = await fetch(SYNC_BASE_URL + '/room/' + room);
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('relay GET ' + r.status);
+      return new Uint8Array(await r.arrayBuffer());
+    };
+    const relayPut = async (room, bytes) => {
+      const r = await fetch(SYNC_BASE_URL + '/room/' + room, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: bytes
+      });
+      if (!r.ok) throw new Error('relay PUT ' + r.status);
+    };
+
+    // One pull -> merge -> push cycle for a single trip.
+    const syncNow = async tripId => {
+      const meta = tripSyncMeta(tripId);
+      if (!meta) return;
+      const id = String(tripId);
+      if (syncInFlight[id]) return;
+      if (!navigator.onLine) { setSyncState(id, 'offline'); return; }
+      syncInFlight[id] = true;
+      setSyncState(id, 'syncing');
+      try {
+        const remoteBytes = await relayGet(meta.room);
+        if (remoteBytes) {
+          const remote = await openSealed(remoteBytes, meta.key);
+          if (String(remote.id) === id) mergeTrip(remote);
+        }
+        const local = trips.value.find(t => String(t.id) === id);
+        if (!local) { setSyncState(id, 'error'); return; }
+        const fp = JSON.stringify(local);
+        // Push when our state changed, or when the room is empty (TTL
+        // eviction / cold start) so we always re-seed it for the peer.
+        if (!remoteBytes || fp !== meta.lastSynced) {
+          await relayPut(meta.room, await sealTrip(local, meta.key));
+          meta.lastSynced = fp;
+          saveSyncMeta();
+        }
+        setSyncState(id, 'synced');
+      } catch (e) {
+        setSyncState(id, navigator.onLine ? 'error' : 'offline');
+      } finally {
+        syncInFlight[id] = false;
+      }
+    };
+
+    // Debounced sync after a local edit.
+    const maybeSync = tripId => {
+      if (!isTripSynced(tripId)) return;
+      clearTimeout(syncDebounce[String(tripId)]);
+      syncDebounce[String(tripId)] = setTimeout(() => syncNow(tripId), 1500);
+    };
+
+    const syncBaseHref = () => location.protocol === 'file:'
+      ? location.href.split('#')[0]
+      : location.origin + location.pathname;
+    const syncJoinUrl = tripId => {
+      const meta = tripSyncMeta(tripId);
+      return meta ? syncBaseHref() + '#sync=' + meta.room + '.' + meta.key : '';
+    };
+    const refreshSyncShare = tripId => {
+      syncUrl.value = syncJoinUrl(tripId);
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(syncUrl.value);
+        qr.make();
+        syncQrSvg.value = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      } catch (e) {
+        syncQrSvg.value = '';
+      }
+    };
+
+    const enableSync = async tripId => {
+      syncMeta[String(tripId)] = { room: genRoomId(), key: await genKey(), lastSynced: '' };
+      saveSyncMeta();
+      await syncNow(tripId);           // initial push seeds the room
+    };
+    const joinSync = async (room, key) => {
+      const bytes = await relayGet(room);
+      if (!bytes) throw new Error('sync room is empty or expired');
+      const remote = await openSealed(bytes, key);
+      const merged = mergeTrip(remote);
+      syncMeta[String(merged.id)] = { room, key, lastSynced: '' };
+      saveSyncMeta();
+      if (currentUser.value && !merged.users.some(u => u.email === currentUser.value.email)) {
+        if (confirm(`You're not a participant of "${merged.title}" yet. Join as ${currentUser.value.email}?`)) {
+          merged.users.push({ email: currentUser.value.email });
+          saveTrips();
+        }
+      }
+      await syncNow(merged.id);         // push our merged state back
+      return merged;
+    };
+    const disableSync = tripId => {
+      delete syncMeta[String(tripId)];
+      saveSyncMeta();
+      delete syncStates[String(tripId)];
+    };
+
+    // Modal-facing wrappers (operate on the open trip).
+    const currentTripSynced = computed(() => !!(currentTrip.value && isTripSynced(currentTrip.value.id)));
+    const currentSyncState = computed(() =>
+      currentTrip.value ? (syncStates[String(currentTrip.value.id)] || 'idle') : 'idle');
+    const syncChip = computed(() => ({
+      syncing: '⟳ syncing', synced: '☁ synced', error: '⚠ sync error',
+      offline: '☁ offline', idle: '☁ synced'
+    }[currentSyncState.value] || '☁ synced'));
+    const enableSyncCurrent = async () => {
+      const id = currentTrip.value.id;
+      await enableSync(id);
+      refreshSyncShare(id);
+    };
+    const syncNowCurrent = () => currentTrip.value && syncNow(currentTrip.value.id);
+    const disableSyncCurrent = () => {
+      if (!confirm('Turn off sync for this trip on THIS device? Other devices keep their copy; the shared room expires on its own.')) return;
+      disableSync(currentTrip.value.id);
+      syncUrl.value = ''; syncQrSvg.value = '';
+    };
+    const copySyncLink = async () => {
+      try { await navigator.clipboard.writeText(syncUrl.value); alert('Sync link copied ✓'); }
+      catch (e) { prompt('Copy this sync link:', syncUrl.value); }
+    };
+    const shareSyncLink = () => navigator.share({
+      title: 'Sync Urunan trip: ' + currentTrip.value.title,
+      url: syncUrl.value
+    }).catch(() => {});
+
+    // Re-sync the open trip when the app regains focus.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' &&
+          currentTrip.value && isTripSynced(currentTrip.value.id))
+        syncNow(currentTrip.value.id);
+    });
+
     const handleIncomingShare = async () => {
+      // Live-sync join link: #sync=<room>.<key>
+      const sm = location.hash.match(/^#sync=([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]+)$/);
+      if (sm) {
+        history.replaceState(null, '', location.pathname + location.search);
+        if (!syncAvailable) { alert('This build has device sync disabled.'); return; }
+        try {
+          const trip = await joinSync(sm[1], sm[2]);
+          alert(currentUser.value
+            ? `Trip "${trip.title}" synced ✓ — it now stays in sync across your devices.`
+            : `Trip "${trip.title}" synced ✓ — set up with the email you were invited as to see it.`);
+        } catch (e) {
+          alert('Could not join sync (' + e.message + ')');
+        }
+        return;
+      }
       const m = location.hash.match(/^#trip=(.+)$/);
       if (!m) return;
       history.replaceState(null, '', location.pathname + location.search);
@@ -3222,6 +3495,8 @@ createApp({
       resetSplits, splitRemaining, isSplitInvalid,
       shareModal, shareUrl, shareQrSvg, canNativeShare,
       shareTrip, copyShareLink, nativeShare,
+      syncAvailable, currentTripSynced, currentSyncState, syncChip, syncUrl, syncQrSvg,
+      enableSyncCurrent, syncNowCurrent, disableSyncCurrent, copySyncLink, shareSyncLink,
       tripTotal, completeSetup, logout, dismissInstallBanner,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, confirmDeleteTransaction, settleTrip
