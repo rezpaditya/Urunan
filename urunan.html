@@ -3384,6 +3384,15 @@ createApp({
       syncDebounce[String(tripId)] = setTimeout(() => syncNow(tripId), 1500);
     };
 
+    // Pull the latest for every synced trip on launch, so a cold start
+    // (e.g. an installed home-screen app that already joined sync) shows
+    // fresh data without having to open each trip first. Fire-and-forget;
+    // each syncNow is re-entrancy guarded and skips no-op pushes.
+    const syncAllOnStartup = () => {
+      if (!syncAvailable) return;
+      for (const tripId of Object.keys(syncMeta)) syncNow(tripId);
+    };
+
     const syncBaseHref = () => location.protocol === 'file:'
       ? location.href.split('#')[0]
       : location.origin + location.pathname;
@@ -3503,6 +3512,9 @@ createApp({
     // Also import when a share link lands in an already-open app
     // (same-document navigation fires hashchange, not a page load)
     window.addEventListener('hashchange', handleIncomingShare);
+
+    // Refresh all already-joined synced trips on launch.
+    syncAllOnStartup();
 
     return {
       view, currentUser, setupForm, tripForm, transactionForm,
