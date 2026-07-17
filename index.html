@@ -74,6 +74,29 @@ input, select { -webkit-appearance: none; appearance: none; }
 .hero-sub { color: var(--gray-400); margin-top: 0.25rem; font-size: 0.9375rem; }
 .hero-note { text-align: center; font-size: 0.75rem; color: var(--gray-400); margin-top: 0.75rem; }
 
+/* ── Add-to-Home-Screen banner ─────────────── */
+.install-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--teal-50);
+  border: 1px solid var(--teal-100);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+}
+.install-banner-text { flex: 1; font-size: 0.8125rem; color: var(--teal-700); line-height: 1.5; }
+.install-banner-text b { display: block; margin-bottom: 0.25rem; }
+.install-banner-text .install-restore-hint { display: block; margin-top: 0.375rem; }
+.install-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--teal-700); opacity: 0.5; font-size: 1.25rem; line-height: 1; padding: 0; flex-shrink: 0;
+}
+.link-btn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--teal-700); font: inherit; text-decoration: underline;
+}
+
 /* ── Top bar ──────────────────────────────── */
 .topbar {
   display: flex;
@@ -382,8 +405,26 @@ input, select { -webkit-appearance: none; appearance: none; }
       <button class="btn-danger-soft" @click="logout">Logout</button>
     </div>
 
+    <!-- Install banner (first time, not already installed) -->
+    <div v-if="showInstallBanner" class="install-banner">
+      <span style="font-size:1.5rem;flex-shrink:0">📲</span>
+      <div class="install-banner-text">
+        <b>Add to Home Screen for easy access</b>
+        In Safari, tap the <b>Share</b> button (□↑) then <b>"Add to Home Screen"</b> — Urunan will appear as an app icon you can tap directly.
+        <span v-if="syncAvailable" class="install-restore-hint">
+          The installed app starts with its own empty storage. If your trips
+          don't appear there, tap
+          <button type="button" class="link-btn" @click="openRestore">Restore synced trips</button>
+          and enter your recovery passphrase.
+        </span>
+      </div>
+      <button class="install-close" @click="dismissInstallBanner">×</button>
+    </div>
+
     <div class="section-row">
       <span class="section-title">Your Trips</span>
+      <button v-if="syncAvailable" type="button" class="link-btn" style="font-size:0.8125rem"
+              @click="openRestore">🔄 Restore synced trips</button>
     </div>
 
     <!-- Create trip toggle -->
@@ -616,6 +657,12 @@ input, select { -webkit-appearance: none; appearance: none; }
             <button class="btn btn-secondary" @click="syncNowCurrent">🔄 Sync now</button>
             <button class="btn btn-ghost" @click="disableSyncCurrent">Turn off</button>
           </div>
+          <p v-if="!hasRecovery" class="field-hint" style="margin-top:0.5rem">
+            💡 Set a <b>recovery passphrase</b> so you can restore this trip on a new
+            device with just your email + passphrase (handy after adding Urunan to
+            your home screen).
+            <button type="button" class="link-btn" @click="setupRecovery">Set up recovery</button>
+          </p>
         </template>
       </div>
 
@@ -678,6 +725,39 @@ input, select { -webkit-appearance: none; appearance: none; }
         <div class="modal-actions" style="margin-top:0.875rem">
           <button type="submit" class="btn btn-primary">Save changes</button>
           <button type="button" class="btn btn-secondary" @click="editTripModal = false">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Restore synced trips (email + passphrase) -->
+  <div v-if="showRestoreModal" class="modal-backdrop" @click.self="showRestoreModal = false">
+    <div class="modal">
+      <h3 class="section-title" style="margin-bottom:0.5rem">🔄 Restore synced trips</h3>
+      <p class="field-hint" style="margin-top:0">
+        Bring back every trip you've enabled sync for on this device using your
+        email and the recovery passphrase you set. Works on a freshly installed
+        home-screen app that started empty — but only while another of your
+        devices has synced recently.
+      </p>
+      <form class="form" @submit.prevent="doRestore">
+        <div class="field-label" style="margin-top:0.5rem">Email</div>
+        <input v-model="restoreForm.email" class="input" type="email" required
+               placeholder="your@email.com" autocomplete="email">
+
+        <div class="field-label" style="margin-top:0.5rem">Recovery passphrase</div>
+        <input v-model="restoreForm.passphrase" class="input" type="password" required
+               placeholder="Your recovery passphrase" autocomplete="off">
+
+        <p v-if="restoreForm.error" class="field-hint" style="color:var(--red);margin-top:0.5rem">
+          {{ restoreForm.error }}
+        </p>
+
+        <div class="modal-actions" style="margin-top:0.875rem">
+          <button type="submit" class="btn btn-primary" :disabled="restoreForm.busy">
+            {{ restoreForm.busy ? 'Restoring…' : 'Restore' }}
+          </button>
+          <button type="button" class="btn btn-secondary" @click="showRestoreModal = false">Cancel</button>
         </div>
       </form>
     </div>
@@ -3027,6 +3107,9 @@ createApp({
     const showAddTransaction = ref(false);
     const editingTxId = ref(null);          // id of the transaction being edited, or null
     const editTripModal = ref(false);       // edit-trip modal (name/description/members)
+    const showInstallBanner = ref(false);   // "Add to Home Screen" hint on the trips screen
+    const showRestoreModal = ref(false);    // "Restore synced trips" (email + passphrase) modal
+    const restoreForm = reactive({ email: '', passphrase: '', busy: false, error: '' });
 
     const setupForm = reactive({ name: '', email: '' });
     const tripForm  = reactive({ title: '', text: '', participantInput: '', participants: [] });
@@ -3045,10 +3128,25 @@ createApp({
       view.value = 'trips';
     }
 
+    // ── Add to Home Screen hint ─────────────────────────────────
+    // Only outside an installed (standalone) app, and only until dismissed.
+    const isStandalone = () =>
+      window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+    const maybeShowInstallBanner = () => {
+      if (!isStandalone() && !localStorage.getItem('urunan_install_dismissed'))
+        showInstallBanner.value = true;
+    };
+    if (savedUser) maybeShowInstallBanner();
+    const dismissInstallBanner = () => {
+      showInstallBanner.value = false;
+      localStorage.setItem('urunan_install_dismissed', '1');
+    };
+
     // ── Setup ──────────────────────────────────────────────────
     const completeSetup = () => {
       currentUser.value = { name: setupForm.name.trim(), email: setupForm.email.trim().toLowerCase() };
       localStorage.setItem('urunan_user', JSON.stringify(currentUser.value));
+      maybeShowInstallBanner();
       view.value = 'trips';
     };
 
@@ -3534,9 +3632,11 @@ createApp({
     };
     const importKey = keyB64u => crypto.subtle.importKey(
       'raw', bytesFromB64u(keyB64u), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-    const sealTrip = async (trip, keyB64u) => {
+    // Generic gzip + AES-GCM envelope: [gzFlag(1)][iv(12)][ciphertext].
+    // Used for both trip payloads and the recovery manifest.
+    const sealJson = async (obj, keyB64u) => {
       const key = await importKey(keyB64u);
-      const raw = new TextEncoder().encode(JSON.stringify(trip));
+      const raw = new TextEncoder().encode(JSON.stringify(obj));
       const gz = !!window.CompressionStream;
       const body = gz ? await gzip(raw) : raw;
       const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -3547,14 +3647,18 @@ createApp({
       out.set(ct, 1 + iv.length);
       return out;
     };
-    const openSealed = async (bytes, keyB64u) => {
+    const openJson = async (bytes, keyB64u) => {
       const key = await importKey(keyB64u);
       const gz = bytes[0] === 1;
       const iv = bytes.slice(1, 13);
       const ct = bytes.slice(13);
       const body = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct));
       const raw = gz ? await gunzip(body) : body;
-      const trip = JSON.parse(new TextDecoder().decode(raw));
+      return JSON.parse(new TextDecoder().decode(raw));
+    };
+    const sealTrip = (trip, keyB64u) => sealJson(trip, keyB64u);
+    const openSealed = async (bytes, keyB64u) => {
+      const trip = await openJson(bytes, keyB64u);
       if (!trip || typeof trip !== 'object' || !trip.id ||
           !Array.isArray(trip.users) || !Array.isArray(trip.transactions))
         throw new Error('not a valid trip');
@@ -3624,6 +3728,7 @@ createApp({
     const syncAllOnStartup = () => {
       if (!syncAvailable) return;
       for (const tripId of Object.keys(syncMeta)) syncNow(tripId);
+      pushInbox();                       // keep the recovery inbox warm
     };
 
     const syncBaseHref = () => location.protocol === 'file:'
@@ -3645,10 +3750,122 @@ createApp({
       }
     };
 
+    // ── Recovery inbox (email + passphrase) ────────────────────
+    // A per-user "inbox" room on the same relay whose id AND key are derived
+    // from email + a recovery passphrase (PBKDF2). It holds an encrypted
+    // manifest of every synced trip's creds, so a blank device — e.g. a
+    // freshly installed home-screen PWA that can't see the browser's
+    // localStorage — can re-enter email + passphrase and pull all its synced
+    // trips back. Email alone never locates or decrypts anything: the
+    // passphrase is the secret, so end-to-end encryption is preserved. The
+    // inbox is just another relayed room, so it too lives only in relay
+    // memory (kept warm by active devices), never on disk.
+    const PBKDF2_ITERS = 200000;
+    const deriveInbox = async (email, passphrase) => {
+      const enc = new TextEncoder();
+      const norm = String(email).trim().toLowerCase();
+      const baseKey = await crypto.subtle.importKey(
+        'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveBits']);
+      const bits = new Uint8Array(await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt: enc.encode('urunan-inbox|' + norm),
+          iterations: PBKDF2_ITERS, hash: 'SHA-256' },
+        baseKey, 256));                              // 32 bytes
+      return {
+        room: b64uFromBytes(bits.slice(0, 16)),      // 22-char base64url room id
+        key:  b64uFromBytes(bits.slice(16, 32))      // 128-bit AES-GCM key
+      };
+    };
+
+    // Device-local inbox creds { room, key }, kept separate so they never
+    // leak into #trip=/#sync= shares. Re-derivable from email + passphrase.
+    const inboxMeta = ref((() => {
+      try { return JSON.parse(localStorage.getItem('urunan_inbox')) || null; }
+      catch (e) { return null; }
+    })());
+    const saveInbox = m => { inboxMeta.value = m; localStorage.setItem('urunan_inbox', JSON.stringify(m)); };
+
+    // The manifest published to the inbox: this device's per-trip sync creds.
+    const localManifest = () => {
+      const out = {};
+      for (const [tid, m] of Object.entries(syncMeta)) {
+        const t = trips.value.find(t => String(t.id) === String(tid));
+        out[tid] = { room: m.room, key: m.key, title: t ? t.title : '' };
+      }
+      return { trips: out };
+    };
+
+    // Pull → merge → push the inbox manifest. Unions creds across the user's
+    // devices and refreshes the relay TTL so the inbox stays reachable while
+    // any device is active. Best-effort: trip sync works without it.
+    const pushInbox = async () => {
+      const inb = inboxMeta.value;
+      if (!inb || !syncAvailable || !navigator.onLine) return;
+      try {
+        const merged = { trips: {} };
+        const remoteBytes = await relayGet(inb.room);
+        if (remoteBytes) {
+          try {
+            const remote = await openJson(remoteBytes, inb.key);
+            if (remote && remote.trips) Object.assign(merged.trips, remote.trips);
+          } catch (e) { /* wrong key / corrupt — overwrite with our copy */ }
+        }
+        Object.assign(merged.trips, localManifest().trips);   // local wins on conflict
+        await relayPut(inb.room, await sealJson(merged, inb.key));
+      } catch (e) { /* ignore: recovery is a convenience, not required for sync */ }
+    };
+
+    // Set up the recovery inbox on first sync (prompt once for a passphrase).
+    const ensureInbox = async () => {
+      if (inboxMeta.value) return true;
+      if (!currentUser.value) return false;
+      const pass = prompt(
+        'Set a recovery passphrase for cross-device sync.\n\n' +
+        'You\'ll enter your email + this passphrase to restore your synced ' +
+        'trips on a new device (for example after adding Urunan to your home ' +
+        'screen). It cannot be reset, so keep it safe.\n\n' +
+        'Passphrase (at least 6 characters):');
+      if (pass === null) return false;                   // cancelled
+      if (pass.trim().length < 6) { alert('Passphrase must be at least 6 characters.'); return false; }
+      saveInbox(await deriveInbox(currentUser.value.email, pass.trim()));
+      return true;
+    };
+
+    // Restore every synced trip from the inbox using email + passphrase.
+    // Returns the number of trips found.
+    const restoreFromInbox = async (email, passphrase) => {
+      if (!syncAvailable) throw new Error('device sync is disabled in this build');
+      const inb = await deriveInbox(email, passphrase);
+      const bytes = await relayGet(inb.room);
+      // Room id and key both derive from email + passphrase, so a wrong
+      // passphrase lands on a different (empty) room. A 404 therefore means
+      // either the passphrase is wrong or no device has refreshed the inbox
+      // recently — surface both.
+      if (!bytes) throw new Error(
+        'Couldn\'t find your synced trips. Double-check your recovery passphrase, ' +
+        'or open Urunan on a device that still has them so it can refresh, then try again.');
+      let manifest;
+      try { manifest = await openJson(bytes, inb.key); }
+      catch (e) { throw new Error('Wrong email or recovery passphrase.'); }
+      if (!manifest || typeof manifest !== 'object' || !manifest.trips)
+        throw new Error('Wrong email or recovery passphrase.');
+      saveInbox(inb);
+      let found = 0;
+      for (const [tid, m] of Object.entries(manifest.trips)) {
+        if (!m || !m.room || !m.key) continue;
+        if (!syncMeta[tid]) syncMeta[tid] = { room: m.room, key: m.key, lastSynced: '' };
+        found++;
+      }
+      saveSyncMeta();
+      await Promise.all(Object.keys(manifest.trips).map(tid => syncNow(tid)));
+      return found;
+    };
+
     const enableSync = async tripId => {
       syncMeta[String(tripId)] = { room: genRoomId(), key: await genKey(), lastSynced: '' };
       saveSyncMeta();
       await syncNow(tripId);           // initial push seeds the room
+      await ensureInbox();             // set up the recovery inbox on first sync
+      pushInbox();                     // publish this trip's creds to the inbox
     };
     const joinSync = async (room, key) => {
       const bytes = await relayGet(room);
@@ -3664,12 +3881,48 @@ createApp({
         }
       }
       await syncNow(merged.id);         // push our merged state back
+      pushInbox();                      // include this trip in the recovery inbox (if set up)
       return merged;
     };
     const disableSync = tripId => {
       delete syncMeta[String(tripId)];
       saveSyncMeta();
       delete syncStates[String(tripId)];
+    };
+
+    // Restore-modal wiring.
+    const openRestore = () => {
+      restoreForm.email = currentUser.value ? currentUser.value.email : '';
+      restoreForm.passphrase = '';
+      restoreForm.error = '';
+      restoreForm.busy = false;
+      showRestoreModal.value = true;
+    };
+    const doRestore = async () => {
+      restoreForm.error = '';
+      restoreForm.busy = true;
+      try {
+        const n = await restoreFromInbox(restoreForm.email.trim().toLowerCase(), restoreForm.passphrase);
+        showRestoreModal.value = false;
+        alert(n
+          ? `Restored ${n} synced trip${n === 1 ? '' : 's'} ✓`
+          : 'No synced trips were listed for this account.');
+      } catch (e) {
+        restoreForm.error = e.message || String(e);
+      } finally {
+        restoreForm.busy = false;
+      }
+    };
+
+    // Recovery is "set up" once this device has an inbox. Trips synced under
+    // an earlier release (before the passphrase existed) have none, so offer a
+    // one-off way to establish it and publish the already-synced trips.
+    const hasRecovery = computed(() => !!inboxMeta.value);
+    const setupRecovery = async () => {
+      const ok = await ensureInbox();
+      if (!ok) return;
+      await pushInbox();
+      alert('Recovery is set up ✓ — restore your synced trips on another device with your email + this passphrase.');
     };
 
     // Modal-facing wrappers (operate on the open trip).
@@ -3760,6 +4013,9 @@ createApp({
       shareTrip, copyShareLink, nativeShare,
       syncAvailable, currentTripSynced, currentSyncState, syncChip, syncUrl, syncQrSvg,
       enableSyncCurrent, syncNowCurrent, disableSyncCurrent, copySyncLink, shareSyncLink,
+      showInstallBanner, dismissInstallBanner,
+      showRestoreModal, restoreForm, openRestore, doRestore,
+      hasRecovery, setupRecovery,
       tripTotal, displayName, completeSetup, logout,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, toggleAddTransaction, startEditTransaction,
