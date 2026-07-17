@@ -1,0 +1,48 @@
+name: Smoke tests
+
+# Runs the Playwright smoke tests in tests/ against urunan.html on every
+# push and PR that touches the app or the tests themselves.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "urunan.html"
+      - "tests/**"
+      - ".github/workflows/smoke-tests.yml"
+  pull_request:
+    paths:
+      - "urunan.html"
+      - "tests/**"
+      - ".github/workflows/smoke-tests.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        run: npm test
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/playwright-report/
+          retention-days: 7
