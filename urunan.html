@@ -74,24 +74,6 @@ input, select { -webkit-appearance: none; appearance: none; }
 .hero-sub { color: var(--gray-400); margin-top: 0.25rem; font-size: 0.9375rem; }
 .hero-note { text-align: center; font-size: 0.75rem; color: var(--gray-400); margin-top: 0.75rem; }
 
-/* ── Install banner ───────────────────────── */
-.install-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  background: var(--teal-50);
-  border: 1px solid var(--teal-100);
-  border-radius: 0.75rem;
-  padding: 0.875rem 1rem;
-  margin-bottom: 1rem;
-}
-.install-banner-text { flex: 1; font-size: 0.8125rem; color: var(--teal-700); line-height: 1.5; }
-.install-banner-text b { display: block; margin-bottom: 0.25rem; }
-.install-close {
-  background: none; border: none; cursor: pointer;
-  color: var(--teal-700); opacity: 0.5; font-size: 1.25rem; line-height: 1; padding: 0; flex-shrink: 0;
-}
-
 /* ── Top bar ──────────────────────────────── */
 .topbar {
   display: flex;
@@ -263,6 +245,15 @@ input, select { -webkit-appearance: none; appearance: none; }
   border-radius: 9999px;
   font-size: 0.75rem;
 }
+.member-list { display: flex; flex-direction: column; gap: 0.375rem; }
+.member-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 0.5rem;
+}
+.member-row-name { font-size: 0.875rem; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-you { font-size: 0.7rem; color: var(--gray-400); margin-left: 0.35rem; }
+.btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ── Summary card ─────────────────────────── */
 .summary-card { background: white; border: 1px solid var(--gray-200); border-radius: 0.875rem; padding: 1rem; margin-bottom: 0.875rem; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
@@ -371,16 +362,6 @@ input, select { -webkit-appearance: none; appearance: none; }
   <!-- ── TRIP LIST SCREEN ──────────────────────────────── -->
   <div v-else-if="view === 'trips'" style="flex:1;display:flex;flex-direction:column">
 
-    <!-- Install banner (first time) -->
-    <div v-if="showInstallBanner" class="install-banner" style="margin-top:0.75rem">
-      <span style="font-size:1.5rem;flex-shrink:0">📲</span>
-      <div class="install-banner-text">
-        <b>Add to Home Screen for easy access</b>
-        In Safari, tap the <b>Share</b> button (□↑) then <b>"Add to Home Screen"</b> — Urunan will appear as an app icon you can tap directly.
-      </div>
-      <button class="install-close" @click="dismissInstallBanner">×</button>
-    </div>
-
     <div class="topbar">
       <div class="topbar-left">
         <span class="topbar-name">🏕️ {{ currentUser.name }}</span>
@@ -485,7 +466,10 @@ input, select { -webkit-appearance: none; appearance: none; }
 
     <!-- Participants -->
     <div class="card" style="margin-bottom:0.875rem">
-      <div class="section-title mb-2">👥 Participants</div>
+      <div class="section-row" style="margin-bottom:0.5rem">
+        <span class="section-title">👥 Participants</span>
+        <button class="btn-ghost" style="font-size:0.8125rem;flex-shrink:0" @click="openEditTrip">✏️ Edit trip</button>
+      </div>
       <div class="chip-list">
         <span v-for="u in currentTrip.users" :key="u.email" class="participant-chip" :title="u.email">{{ displayName(u.email) }}</span>
       </div>
@@ -595,21 +579,9 @@ input, select { -webkit-appearance: none; appearance: none; }
   <div v-if="shareModal" class="modal-backdrop" @click.self="shareModal = false">
     <div class="modal">
       <h3 class="section-title" style="margin-bottom:0.25rem">📤 Share trip</h3>
-      <p class="field-hint" style="margin-top:0">
-        Friends open this link (or scan the QR code) to import the trip with all its
-        transactions onto their device. Share again after adding expenses to keep
-        everyone up to date — imports merge automatically, nothing gets duplicated.
-      </p>
-      <div v-if="shareQrSvg" class="qr-box" v-html="shareQrSvg"></div>
-      <p v-else class="field-hint">This trip is too large for a QR code — use the link instead.</p>
-      <input class="input" readonly :value="shareUrl" @focus="$event.target.select()" style="font-size:0.75rem">
-      <div class="modal-actions">
-        <button class="btn btn-primary" @click="copyShareLink">📋 Copy link</button>
-        <button v-if="canNativeShare" class="btn btn-secondary" @click="nativeShare">📱 Share via…</button>
-      </div>
 
-      <!-- Device sync (only when a relay is configured) -->
-      <div v-if="syncAvailable" style="border-top:1px solid var(--gray-200,#e5e7eb);margin-top:0.85rem;padding-top:0.75rem">
+      <!-- Primary: device sync (when a relay is configured) -->
+      <div v-if="syncAvailable">
         <div class="section-title" style="margin-bottom:0.25rem">🔄 Sync across devices</div>
         <template v-if="!currentTripSynced">
           <p class="field-hint" style="margin-top:0">
@@ -635,9 +607,67 @@ input, select { -webkit-appearance: none; appearance: none; }
         </template>
       </div>
 
+      <!-- Secondary: one-time link / QR export -->
+      <div :style="syncAvailable ? 'border-top:1px solid var(--gray-200,#e5e7eb);margin-top:0.85rem;padding-top:0.75rem' : ''">
+        <button v-if="syncAvailable" class="btn btn-ghost" style="width:100%" @click="showManualShare = !showManualShare">
+          {{ showManualShare ? '▲ Hide one-time link / QR' : '🔗 One-time link / QR export' }}
+        </button>
+        <div v-if="showManualShare || !syncAvailable" :style="syncAvailable ? 'margin-top:0.5rem' : ''">
+          <p class="field-hint" style="margin-top:0">
+            Friends open this link (or scan the QR code) to import the trip with all its
+            transactions onto their device. Share again after adding expenses to keep
+            everyone up to date — imports merge automatically, nothing gets duplicated.
+          </p>
+          <div v-if="shareQrSvg" class="qr-box" v-html="shareQrSvg"></div>
+          <p v-else class="field-hint">This trip is too large for a QR code — use the link instead.</p>
+          <input class="input" readonly :value="shareUrl" @focus="$event.target.select()" style="font-size:0.75rem">
+          <div class="modal-actions">
+            <button class="btn btn-primary" @click="copyShareLink">📋 Copy link</button>
+            <button v-if="canNativeShare" class="btn btn-secondary" @click="nativeShare">📱 Share via…</button>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button class="btn btn-secondary" @click="shareModal = false">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── EDIT TRIP MODAL ───────────────────────────────── -->
+  <div v-if="editTripModal && currentTrip" class="modal-backdrop" @click.self="editTripModal = false">
+    <div class="modal">
+      <h3 class="section-title" style="margin-bottom:0.5rem">✏️ Edit trip</h3>
+      <form class="form" @submit.prevent="saveEditTrip">
+        <div class="field-label">Trip name</div>
+        <input v-model="editTripForm.title" class="input" type="text" required placeholder="Trip name">
+
+        <div class="field-label" style="margin-top:0.5rem">Description</div>
+        <input v-model="editTripForm.text" class="input" type="text" placeholder="Description (optional)">
+
+        <div class="field-label" style="margin-top:0.75rem">Members</div>
+        <p class="field-hint" style="margin-top:0">
+          A member can be removed only if they aren't part of any transaction.
+        </p>
+        <div class="member-list">
+          <div v-for="u in currentTrip.users" :key="u.email" class="member-row">
+            <span class="member-row-name" :title="u.email">
+              {{ displayName(u.email) }}
+              <span v-if="currentUser && u.email === currentUser.email" class="member-you">(you)</span>
+            </span>
+            <button v-if="!currentUser || u.email !== currentUser.email"
+                    type="button" class="btn-icon"
+                    :disabled="memberHasTransactions(currentTrip, u.email)"
+                    :title="memberHasTransactions(currentTrip, u.email) ? 'Has transactions — cannot remove' : 'Remove member'"
+                    @click="removeTripMember(u.email)">🗑</button>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:0.875rem">
+          <button type="submit" class="btn btn-primary">Save changes</button>
+          <button type="button" class="btn btn-secondary" @click="editTripModal = false">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -2977,10 +3007,11 @@ createApp({
     const showAddTrip = ref(false);
     const showAddTransaction = ref(false);
     const editingTxId = ref(null);          // id of the transaction being edited, or null
-    const showInstallBanner = ref(false);
+    const editTripModal = ref(false);       // edit-trip modal (name/description/members)
 
     const setupForm = reactive({ name: '', email: '' });
     const tripForm  = reactive({ title: '', text: '', participantInput: '', participants: [] });
+    const editTripForm = reactive({ title: '', text: '' });
     const transactionForm = reactive({ email: '', title: '', cost: '', splits: [] });
 
     // ── Persistence ────────────────────────────────────────────
@@ -2993,24 +3024,12 @@ createApp({
     if (savedUser) {
       currentUser.value = JSON.parse(savedUser);
       view.value = 'trips';
-      // Show install hint once (not in standalone mode)
-      const standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-      if (!standalone && !localStorage.getItem('urunan_install_dismissed')) {
-        showInstallBanner.value = true;
-      }
     }
-
-    const dismissInstallBanner = () => {
-      showInstallBanner.value = false;
-      localStorage.setItem('urunan_install_dismissed', '1');
-    };
 
     // ── Setup ──────────────────────────────────────────────────
     const completeSetup = () => {
       currentUser.value = { name: setupForm.name.trim(), email: setupForm.email.trim().toLowerCase() };
       localStorage.setItem('urunan_user', JSON.stringify(currentUser.value));
-      const standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-      if (!standalone) showInstallBanner.value = true;
       view.value = 'trips';
     };
 
@@ -3266,6 +3285,63 @@ createApp({
       maybeSync(currentTrip.value.id);
     };
 
+    // ── Edit trip ──────────────────────────────────────────────
+    // A member "has transactions" when they paid for one, or carry a
+    // non-zero share in one — either way removing them would change the
+    // debt maths, so removal is blocked. Members with only zero shares
+    // (never involved financially) can be removed safely.
+    const memberHasTransactions = (trip, email) =>
+      !!trip && trip.transactions.some(tx =>
+        tx.email === email ||
+        (tx.details || []).some(d => d.email === email && d.cost > 0.005)
+      );
+
+    const openEditTrip = () => {
+      const trip = currentTrip.value;
+      if (!trip) return;
+      editTripForm.title = trip.title;
+      editTripForm.text  = trip.text || '';
+      editTripModal.value = true;
+    };
+
+    const saveEditTrip = () => {
+      const trip = currentTrip.value;
+      if (!trip) return;
+      const title = editTripForm.title.trim();
+      if (!title) { alert('Trip name cannot be empty.'); return; }
+      trip.title = title;
+      trip.text  = editTripForm.text.trim();
+      saveTrips();
+      maybeSync(trip.id);
+      editTripModal.value = false;
+    };
+
+    const removeTripMember = email => {
+      const trip = currentTrip.value;
+      if (!trip) return;
+      if (currentUser.value && email === currentUser.value.email) {
+        alert("You can't remove yourself from the trip.");
+        return;
+      }
+      if (memberHasTransactions(trip, email)) {
+        alert(`${displayName(email)} is part of a transaction and can't be removed. Remove or reassign those transactions first.`);
+        return;
+      }
+      if (!confirm(`Remove ${displayName(email)} from this trip?`)) return;
+      trip.users = trip.users.filter(u => u.email !== email);
+      // Drop this member's (zero-cost) split entries so no stale references
+      // linger in transactions.
+      trip.transactions.forEach(tx => {
+        if (Array.isArray(tx.details))
+          tx.details = tx.details.filter(d => d.email !== email);
+      });
+      // Tombstone the removal so a synced peer doesn't resurrect the member
+      // via the users-union in mergeTrip (mirrors deleted_tx_ids).
+      (trip.deleted_user_emails || (trip.deleted_user_emails = [])).push(email);
+      saveTrips();
+      maybeSync(trip.id);
+    };
+
     // ── Share link + QR sync ───────────────────────────────────
     // A trip is serialized to gzip+base64url in the URL fragment
     // (#trip=...). The fragment is never sent to the server. Opening
@@ -3273,6 +3349,7 @@ createApp({
     // union of users (by email) and transactions (by id), so repeated
     // shares in any direction never duplicate data.
     const shareModal = ref(false);
+    const showManualShare = ref(false);   // one-time link/QR export is secondary to device sync
     const shareUrl = ref('');
     const shareQrSvg = ref('');
     const canNativeShare = typeof navigator.share === 'function';
@@ -3329,6 +3406,8 @@ createApp({
       }
       if (isTripSynced(currentTrip.value.id)) refreshSyncShare(currentTrip.value.id);
       else { syncUrl.value = ''; syncQrSvg.value = ''; }
+      // Device sync is the default; the one-time link/QR export starts collapsed.
+      showManualShare.value = false;
       shareModal.value = true;
     };
 
@@ -3375,12 +3454,28 @@ createApp({
           existing.deleted_tx_ids = existing.deleted_tx_ids || [];
           if (!existing.deleted_tx_ids.includes(id)) existing.deleted_tx_ids.push(id);
         });
+        // Union removed-member tombstones so a member removed on one device
+        // isn't resurrected by the users-union above from an older copy.
+        (incoming.deleted_user_emails || []).forEach(email => {
+          existing.deleted_user_emails = existing.deleted_user_emails || [];
+          if (!existing.deleted_user_emails.includes(email)) existing.deleted_user_emails.push(email);
+        });
       }
       const target = trips.value.find(t => t.id === incoming.id);
       // Apply the tombstone set: drop any transaction marked deleted.
       if (target.deleted_tx_ids && target.deleted_tx_ids.length) {
         const dead = new Set(target.deleted_tx_ids);
         target.transactions = target.transactions.filter(tx => !dead.has(tx.id));
+      }
+      // Apply removed-member tombstones: drop those members and their split
+      // entries (which are zero-cost by the removal rule).
+      if (target.deleted_user_emails && target.deleted_user_emails.length) {
+        const deadU = new Set(target.deleted_user_emails);
+        target.users = target.users.filter(u => !deadU.has(u.email));
+        target.transactions.forEach(tx => {
+          if (Array.isArray(tx.details))
+            tx.details = tx.details.filter(d => !deadU.has(d.email));
+        });
       }
       saveTrips();
       return target;
@@ -3637,14 +3732,16 @@ createApp({
 
     return {
       view, currentUser, setupForm, tripForm, transactionForm,
-      showAddTrip, showAddTransaction, editingTxId, showInstallBanner,
+      showAddTrip, showAddTransaction, editingTxId,
+      editTripModal, editTripForm, openEditTrip, saveEditTrip,
+      memberHasTransactions, removeTripMember,
       myTrips, currentTrip, myPaid, mappedDebt,
       resetSplits, splitRemaining, isSplitInvalid,
-      shareModal, shareUrl, shareQrSvg, canNativeShare,
+      shareModal, showManualShare, shareUrl, shareQrSvg, canNativeShare,
       shareTrip, copyShareLink, nativeShare,
       syncAvailable, currentTripSynced, currentSyncState, syncChip, syncUrl, syncQrSvg,
       enableSyncCurrent, syncNowCurrent, disableSyncCurrent, copySyncLink, shareSyncLink,
-      tripTotal, displayName, completeSetup, logout, dismissInstallBanner,
+      tripTotal, displayName, completeSetup, logout,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, toggleAddTransaction, startEditTransaction,
       cancelEditTransaction, saveEditTransaction,
