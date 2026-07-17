@@ -657,6 +657,12 @@ input, select { -webkit-appearance: none; appearance: none; }
             <button class="btn btn-secondary" @click="syncNowCurrent">🔄 Sync now</button>
             <button class="btn btn-ghost" @click="disableSyncCurrent">Turn off</button>
           </div>
+          <p v-if="!hasRecovery" class="field-hint" style="margin-top:0.5rem">
+            💡 Set a <b>recovery passphrase</b> so you can restore this trip on a new
+            device with just your email + passphrase (handy after adding Urunan to
+            your home screen).
+            <button type="button" class="link-btn" @click="setupRecovery">Set up recovery</button>
+          </p>
         </template>
       </div>
 
@@ -3908,6 +3914,17 @@ createApp({
       }
     };
 
+    // Recovery is "set up" once this device has an inbox. Trips synced under
+    // an earlier release (before the passphrase existed) have none, so offer a
+    // one-off way to establish it and publish the already-synced trips.
+    const hasRecovery = computed(() => !!inboxMeta.value);
+    const setupRecovery = async () => {
+      const ok = await ensureInbox();
+      if (!ok) return;
+      await pushInbox();
+      alert('Recovery is set up ✓ — restore your synced trips on another device with your email + this passphrase.');
+    };
+
     // Modal-facing wrappers (operate on the open trip).
     const currentTripSynced = computed(() => !!(currentTrip.value && isTripSynced(currentTrip.value.id)));
     const currentSyncState = computed(() =>
@@ -3998,6 +4015,7 @@ createApp({
       enableSyncCurrent, syncNowCurrent, disableSyncCurrent, copySyncLink, shareSyncLink,
       showInstallBanner, dismissInstallBanner,
       showRestoreModal, restoreForm, openRestore, doRestore,
+      hasRecovery, setupRecovery,
       tripTotal, displayName, completeSetup, logout,
       addParticipant, removeParticipant, createTrip, confirmDeleteTrip, openTrip,
       addTransaction, toggleAddTransaction, startEditTransaction,

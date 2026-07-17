@@ -182,6 +182,12 @@ way back; **email + passphrase recovery** is the other.
 - **Restoring:** on the new device, set up with the same email, tap **🔄 Restore
   synced trips**, and enter your email + passphrase. The app re-derives the
   inbox, pulls the manifest, and re-joins every trip.
+- **Already had synced trips (upgrading)?** Trips synced before this feature
+  existed have no inbox, and there is no server-side lookup from email alone, so
+  they can't be restored by email until you set a passphrase. On a device that
+  still has the trip, open its **Share** panel and tap **Set up recovery** to
+  choose a passphrase and publish your synced trips to the inbox — then email +
+  passphrase recovery works on your other devices.
 - **Privacy:** the inbox room id *and* its encryption key are both derived from
   `email + passphrase` via PBKDF2. Email alone (which is public) can neither
   locate nor read anything — the passphrase is the secret, so end-to-end
