@@ -15,7 +15,10 @@ localStorage.
 ## Using the app
 
 - **On your phone:** open the live URL in Safari/Chrome, then *Share → Add to
-  Home Screen* to get a full-screen app icon.
+  Home Screen* to get a full-screen app icon. The app shows a one-time hint for
+  this on the trips screen. On iOS the installed app starts with empty storage —
+  bring your synced trips over with
+  [email + passphrase recovery](#recovering-synced-trips-on-a-new-device).
 - **Offline / no hosting:** download `urunan.html` and open it in any browser.
   Everything works from a `file://` URL too.
 
@@ -31,6 +34,10 @@ localStorage.
 - **Optional live device sync** — enable it on a trip and changes flow
   both ways automatically across your devices via a tiny relay you host
   (see below). Off by default; the app is fully usable without it.
+- **Email + passphrase recovery** — restore every synced trip on a brand-new
+  device (e.g. a freshly installed home-screen app that started with empty
+  storage) by entering your email and a recovery passphrase. See
+  [Recovering synced trips](#recovering-synced-trips-on-a-new-device).
 - Works offline; data persists in localStorage per device
 
 ## Optional: cross-device sync backend
@@ -159,6 +166,30 @@ if it restarts or scales to zero the room empties, but no data is lost because
 each device re-seeds it on the next sync. Deleting an entire **trip** is
 local-only and does not propagate (deleting a single transaction does, via
 tombstones).
+
+### Recovering synced trips on a new device
+
+Sync creds (the random room id + key) live in each device's `localStorage`. A
+brand-new device therefore doesn't know them — most visibly when you **Add
+Urunan to your Home Screen on iOS**, where the installed web app gets its own
+storage partition separate from Safari and starts empty. The join link/QR is one
+way back; **email + passphrase recovery** is the other.
+
+- **Setting up:** the first time you enable sync you're asked for a one-time
+  **recovery passphrase**. From it (plus your email) the app derives a private
+  "inbox" — another room on the same relay — that holds an encrypted list of
+  every synced trip's room + key. Active devices refresh it automatically.
+- **Restoring:** on the new device, set up with the same email, tap **🔄 Restore
+  synced trips**, and enter your email + passphrase. The app re-derives the
+  inbox, pulls the manifest, and re-joins every trip.
+- **Privacy:** the inbox room id *and* its encryption key are both derived from
+  `email + passphrase` via PBKDF2. Email alone (which is public) can neither
+  locate nor read anything — the passphrase is the secret, so end-to-end
+  encryption is preserved. The passphrase can't be reset; keep it safe.
+- **Same in-memory model:** the inbox is just another relayed room, so it lives
+  only in relay memory and stays reachable only while one of your devices has
+  pushed recently. Recovery works best right after opening the app on a device
+  that still has the trips.
 
 ## Development
 
