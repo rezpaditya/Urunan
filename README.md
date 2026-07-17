@@ -117,15 +117,15 @@ sequenceDiagram
     participant B as Device B
 
     Note over A: local edit → wait 1.5 s (debounce)
-    A->>R: GET /room/&lt;id&gt;
+    A->>R: GET /room/{id}
     R-->>A: latest sealed payload (or 404)
     Note over A: decrypt + gunzip → mergeTrip()<br/>(union users & transactions,<br/>newer updated_at wins, apply tombstones)
     Note over A: fingerprint changed?
-    A->>R: PUT /room/&lt;id&gt; (gzip + AES-GCM bytes)
+    A->>R: PUT /room/{id} (gzip + AES-GCM bytes)
     R-->>A: 204
 
     Note over B: opens trip / regains focus / launches
-    B->>R: GET /room/&lt;id&gt;
+    B->>R: GET /room/{id}
     R-->>B: Device A's sealed payload
     Note over B: decrypt + gunzip → mergeTrip()
     B->>R: PUT merged copy back
