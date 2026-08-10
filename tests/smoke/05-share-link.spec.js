@@ -13,11 +13,15 @@ async function makeShareLink(page) {
   await addTransaction(page, { payerName: 'Alice', title: 'Dinner', cost: 10 });
 
   await page.getByRole('button', { name: /Share/ }).click();
-  // When cloud sync is configured it's the primary UI and the one-time
-  // link/QR sits behind a toggle; when sync is off the link shows directly.
+  // shareTrip() builds the link asynchronously, so wait for the modal to
+  // render before probing it. When cloud sync is configured it's the primary
+  // UI and the one-time link/QR sits behind a toggle; when sync is off the
+  // link shows directly.
+  await page.locator('.modal').waitFor();
   const oneTimeToggle = page.getByRole('button', { name: /One-time link/ });
   if (await oneTimeToggle.count()) await oneTimeToggle.click();
   const shareInput = page.locator('.modal input[readonly]');
+  await expect(shareInput).toHaveValue(/#trip=/);
   const url = await shareInput.inputValue();
   expect(url).toContain('#trip=');
   return url;

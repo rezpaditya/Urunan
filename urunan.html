@@ -3750,11 +3750,14 @@ createApp({
     // Refresh the live sync doc for every joined trip on launch, so a cold
     // start shows fresh data and keeps receiving peer updates.
     const syncAllOnStartup = () => {
-      if (!firebaseConfigured) return;
+      // Offline-first: only reach the network when there is actually synced
+      // data to refresh. A fresh device with no synced trips never loads the
+      // Firebase SDK or signs in — page load stays fully local.
+      if (!firebaseConfigured || Object.keys(syncMeta).length === 0) return;
       initFirebase().then(() => {
         for (const tripId of Object.keys(syncMeta)) { subscribeTrip(tripId); syncNow(tripId); }
         pushInbox();
-      }).catch(() => { /* offline / blocked: stay fully local */ });
+      }).catch(() => { /* offline / blocked / not signed in: stay fully local */ });
     };
 
     const syncBaseHref = () => location.protocol === 'file:'

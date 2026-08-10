@@ -12,6 +12,14 @@ const APP_URL = pathToFileURL(
  * so tests start on the trip-list screen as a logged-in user.
  */
 async function setupUser(page, { name = 'Alice', email = 'alice@example.com' } = {}) {
+  // Smoke tests are hermetic and exercise the offline-first core: the app must
+  // work with no external network. Block Firebase/Google hosts so a build that
+  // ships a real Firebase config can't make the suite depend on — or hang on —
+  // the cloud SDK. (The app only reaches these when a trip is actually synced.)
+  await page.route(
+    /gstatic\.com|googleapis\.com|firebaseio\.com|firebaseapp\.com|identitytoolkit/,
+    (route) => route.abort()
+  );
   await page.goto(APP_URL);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
