@@ -10,7 +10,10 @@ trip when everyone is square.
 The entire app is a single self-contained file — [`urunan.html`](urunan.html).
 No server, no build step, no dependencies: Vue 3 and a QR code generator are
 inlined, styling is hand-written CSS, and all data lives in your browser's
-localStorage.
+localStorage. Cross-device cloud sync is **optional** — point the app at a free
+[Firebase](https://firebase.google.com/) project and trips you opt in are
+mirrored to Cloud Firestore; leave it unconfigured and the app stays fully
+local.
 
 ## Using the app
 
@@ -31,170 +34,144 @@ localStorage.
 - Share a trip between devices with a **link or QR code** — no server
   involved: the trip data travels inside the URL fragment and merges
   automatically on import (repeat imports never duplicate data)
-- **Optional live device sync** — enable it on a trip and changes flow
-  both ways automatically across your devices via a tiny relay you host
-  (see below). Off by default; the app is fully usable without it.
+- **Optional live cloud sync** — enable it on a trip and changes flow both ways
+  automatically across your devices through your own Cloud Firestore database
+  (see [`FIREBASE_SETUP.md`](FIREBASE_SETUP.md)). Off until you add a Firebase
+  config; the app is fully usable without it.
 - **One-tap email restore** — restore every synced trip on a brand-new device
   (e.g. a freshly installed home-screen app that started with empty storage) by
   logging in with the same email and tapping **Restore**. See
   [Recovering synced trips](#recovering-synced-trips-on-a-new-device).
 - Works offline; data persists in localStorage per device
 
-## Optional: cross-device sync backend
+## Optional: cross-device cloud sync (Cloud Firestore)
 
-Sync is **off unless you point the app at a relay** and is disabled entirely
-when `SYNC_BASE_URL` (near the top of `urunan.html`) is left empty — forks work
-untouched. The relay is a stateless rendezvous, not a database:
+Sync is **off until you add a Firebase config** — `FIREBASE_CONFIG` (near the
+top of `urunan.html`) ships blank, so forks and offline/`file://` loads work
+untouched and all sync UI stays hidden. Fill it in with a free Firebase project
+and opted-in trips are mirrored to **Cloud Firestore**, syncing live across
+every device that opens the trip's link.
 
-- It **stores nothing**. Payloads sit in memory for a few minutes so the other
-  device can pick them up, then are evicted. Your devices' localStorage stays
-  the sole home of your data.
-- It **can't read your data**. Each payload is gzipped and AES-GCM encrypted in
-  the browser; the key lives only in the sync link, so the relay only ever sees
-  ciphertext.
-- It's one standard-library Python script — see
-  [`sync-server/`](sync-server/) for the code and deploy steps.
+**Setup is a few clicks in the Firebase console — see
+[`FIREBASE_SETUP.md`](FIREBASE_SETUP.md)** for the exact steps (create a
+project, enable Anonymous Auth + Firestore, paste the web config, publish the
+security rules). The web config is **not a secret**: it's meant to ship in
+client code, and access is governed by the Firestore security rules, not by
+hiding it.
 
-Deploy to Google Cloud Run (free tier, needs a GCP project with billing
-enabled), then paste the service URL into `SYNC_BASE_URL`:
+Offline-first is preserved: `localStorage` stays the working store, so the app
+loads and edits with no network and from a `file://` URL. Firestore is layered
+on top — the Firebase SDK is fetched from the CDN only when a config is present,
+so a blank config or a blocked/offline load simply leaves sync unavailable.
 
-```bash
-cd sync-server
-gcloud services enable run.googleapis.com
-gcloud run deploy urunan-sync --source . --region <your-region> --allow-unauthenticated
-```
+## How cloud sync works
 
-## How device sync works
+Sync is **per trip**. Enabling it on a trip mints an unguessable Firestore
+document id (a capability — whoever holds the `#fs=<id>` link can read/write
+that one trip) and mirrors the trip there. Other devices open the link, merge
+the trip in, and subscribe for live updates. Every device signs in with
+**Anonymous Auth** so the security rules can require an authenticated caller.
+Everything below happens inside `urunan.html` (search for the
+`Cloud sync (Cloud Firestore)` block).
 
-Sync is **per trip** and **peer-to-peer through a dumb relay**. There is no
-account, no server-side database, and no continuous connection — devices meet in
-a named "room" on the relay, drop off an encrypted copy of the trip, and pick up
-whatever the other device left. Everything below happens inside `urunan.html`
-(search for the `Cloud sync (optional relay)` block); the relay only shuttles
-opaque bytes.
-
-### Starting sync — how a room is created and joined
+### Starting sync — how a trip is shared and joined
 
 ```mermaid
 flowchart TD
-    A["Device A: tap<br/>Enable device sync"] --> B["genRoomId() → 16 random bytes<br/>genKey() → AES-GCM-128 key"]
-    B --> C["Store room + key in localStorage<br/>(urunan_sync, kept out of #trip= shares)"]
-    C --> D["Initial syncNow():<br/>seed the room with the trip"]
-    D --> E["Show join link + QR:<br/>#sync=&lt;room&gt;.&lt;key&gt;"]
-    E -. "link / QR" .-> F["Device B: open<br/>#sync=&lt;room&gt;.&lt;key&gt;"]
-    F --> G["joinSync(): pull room,<br/>decrypt with key from the link,<br/>mergeTrip() into local data"]
-    G --> H["Save same room + key locally,<br/>push merged copy back"]
-    H --> I["Both devices now share the room —<br/>sync runs automatically from here"]
+    A["Device A: tap<br/>Enable cloud sync"] --> B["genFsId() → 16 random bytes<br/>= unguessable doc id"]
+    B --> C["Store fsId in localStorage<br/>(urunan_sync, kept out of #trip= shares)"]
+    C --> D["syncNow(): write the trip to<br/>Firestore trips/&lt;fsId&gt; + subscribe"]
+    D --> E["Show join link + QR:<br/>#fs=&lt;fsId&gt;"]
+    E -. "link / QR" .-> F["Device B: open<br/>#fs=&lt;fsId&gt;"]
+    F --> G["joinSync(): getDoc(fsId),<br/>mergeTrip() into local data"]
+    G --> H["Save same fsId locally,<br/>push merged copy back, subscribe"]
+    H --> I["Both devices share the doc —<br/>onSnapshot pushes changes live"]
 ```
 
-- **How it starts:** enabling sync on a trip mints a random **room id** (16
-  random bytes) and an **AES-GCM-128 key**, both kept in a separate
-  `urunan_sync` localStorage entry so they never leak into `#trip=` link shares
-  or the relayed payload. The join link is `…/#sync=<room>.<key>` — the key
-  travels only in the link/QR, never to the relay.
-- **How a device joins:** opening the `#sync=` link (or scanning its QR) makes
-  the app pull the room, decrypt it with the key from the URL fragment, merge it
-  locally, store the same room+key, and push its merged copy back. Repeat
-  imports never duplicate data.
+- **How it starts:** enabling sync mints a random **document id** (16 random
+  bytes, base64url) kept in a separate `urunan_sync` localStorage entry so it
+  never leaks into `#trip=` link shares. The join link is `…/#fs=<id>`.
+- **How a device joins:** opening the `#fs=` link (or scanning its QR) makes the
+  app read `trips/<id>`, merge it locally, store the same id, push its merged
+  copy back, and subscribe. Repeat imports never duplicate data.
 
-### What triggers a sync, and how long it takes
+### What triggers a sync
 
-A sync is a single **pull → merge → push** cycle (`syncNow`). It fires on:
+Local writes push to Firestore; peers' writes arrive live via `onSnapshot`. A
+push (`syncNow`) fires on:
 
 | Trigger | When |
 |---|---|
-| App launch | `syncAllOnStartup()` pulls every synced trip once, so a cold start shows fresh data |
+| App launch | `syncAllOnStartup()` subscribes + refreshes every synced trip |
 | Opening a synced trip | `openTrip()` calls `syncNow` immediately |
 | A local edit | `maybeSync()` — **debounced 1.5 s** after add/edit/delete of a transaction, member changes, or settling |
 | Tab/app regains focus | `visibilitychange` re-syncs the open trip |
+| A peer's change | `onSnapshot` delivers it and merges it in — no action needed |
 | Manual **🔄 Sync now** button | on demand |
 
-Each cycle is a couple of short HTTPS requests — typically well under a second on
-a normal connection. There is **no polling loop**: nothing runs on a fixed
-timer, so an idle app makes no sync traffic. A re-entrancy guard means only one
-cycle per trip runs at a time, and a push is skipped entirely when the local
-state hasn't changed (fingerprint compare against `lastSynced`).
+There is **no polling loop**; `onSnapshot` is push-based, and a re-entrancy
+guard means only one push per trip runs at a time.
 
-### The sync cycle — pull, merge, push
+### The sync cycle — merge-on-write, converge-on-snapshot
 
 ```mermaid
 sequenceDiagram
     participant A as Device A
-    participant R as Relay (in-memory,<br/>5-min TTL)
+    participant F as Cloud Firestore<br/>trips/&lt;fsId&gt;
     participant B as Device B
 
     Note over A: local edit → wait 1.5 s (debounce)
-    A->>R: GET /room/{id}
-    R-->>A: latest sealed payload (or 404)
-    Note over A: decrypt + gunzip → mergeTrip()<br/>(union users & transactions,<br/>newer updated_at wins, apply tombstones)
-    Note over A: fingerprint changed?
-    A->>R: PUT /room/{id} (gzip + AES-GCM bytes)
-    R-->>A: 204
-
-    Note over B: opens trip / regains focus / launches
-    B->>R: GET /room/{id}
-    R-->>B: Device A's sealed payload
-    Note over B: decrypt + gunzip → mergeTrip()
-    B->>R: PUT merged copy back
-    R-->>B: 204
+    A->>F: runTransaction: read doc
+    F-->>A: current trip (or empty)
+    Note over A: mergeTrip() (union users & transactions,<br/>newer updated_at wins, apply tombstones)
+    A->>F: write merged trip back
+    F-->>B: onSnapshot delivers the new doc
+    Note over B: mergeTrip() into local data
+    B->>F: (on its own edits) merge + write back
+    F-->>A: onSnapshot delivers B's changes
     Note over A,B: both converge — no duplicates
 ```
 
-**Merging** (`mergeTrip`) is what makes two-way sync safe without a server
-referee: users and transactions are unioned by id, an edited transaction wins by
-its `updated_at` timestamp, and deletions carry **tombstones**
-(`deleted_tx_ids`, `deleted_user_emails`) so a delete on one device is never
-resurrected by an older copy from another.
+**Merging** (`mergeTrip`) is what makes two-way sync safe: users and
+transactions are unioned by id, an edited transaction wins by its `updated_at`
+timestamp, and deletions carry **tombstones** (`deleted_tx_ids`,
+`deleted_user_emails`) so a delete on one device is never resurrected by an
+older copy. Pushes run in a Firestore **transaction** (read → merge → write) so
+two devices writing at once converge instead of clobbering each other;
+`mergeTrip` is idempotent, so a transaction retry is safe.
 
-### What the relay actually sees
+### What Firestore stores
 
-Every payload is compressed and encrypted **in the browser** before it leaves
-the device, so the relay only ever holds ciphertext:
-
-```
-sealed payload = [ gzip flag : 1 byte ] [ IV : 12 bytes ] [ AES-GCM ciphertext ]
-                 trip JSON ──gzip──▶ bytes ──AES-GCM(key)──▶ ciphertext
-```
-
-The key never reaches the relay (it lives only in the `#sync=` link), so the
-relay cannot read a trip even in principle. See
-[`sync-server/server.py`](sync-server/server.py): rooms live in an in-memory
-dict, get a **5-minute TTL**, and are capped at 128 KB per payload.
-
-**Limitations:** the relay only holds the most recent push per room, in memory —
-if it restarts or scales to zero the room empties, but no data is lost because
-each device re-seeds it on the next sync. Deleting an entire **trip** is
-local-only and does not propagate (deleting a single transaction does, via
-tombstones).
+Unlike the old relay, Firestore is a real database: each synced trip is stored
+as a document `trips/<fsId>` holding the trip JSON (`tripJson`) plus an
+`updatedAt`. Google hosts this data in your project — it is **not** end-to-end
+encrypted (that's the trade-off for a durable, queryable store). Access is
+limited by the [security rules](FIREBASE_SETUP.md): an authenticated caller who
+knows the document id. Deleting an entire **trip** is local-only and does not
+propagate (deleting a single transaction does, via tombstones); turning off
+sync on a device just stops mirroring — other devices keep their copy.
 
 ### Recovering synced trips on a new device
 
-Sync creds (the random room id + key) live in each device's `localStorage`. A
+Sync creds (the trip's `fsId`) live in each device's `localStorage`. A
 brand-new device therefore doesn't know them — most visibly when you **Add
 Urunan to your Home Screen on iOS**, where the installed web app gets its own
-storage partition separate from Safari and starts empty. The join link/QR is one
-way back; **email restore** is the simpler one.
+storage partition and starts empty. The join link/QR is one way back;
+**email restore** is the simpler one.
 
-- **How it works:** whenever you enable or join sync, the app publishes an
-  "inbox" — a room on the same relay whose id is derived from your email — that
-  lists every synced trip's room + key. It's kept fresh automatically by any
-  active device. No setup, no passphrase.
-- **Restoring:** on the new device, set up (log in) with the **same email**,
-  then tap **🔄 Restore synced trips** (also offered right in the empty state and
-  in the Add-to-Home-Screen hint). The app reads the inbox for your email and
-  re-joins every trip. One tap, done.
-- **In-memory model:** the inbox is just another relayed room, so it lives only
-  in relay memory and stays reachable only while one of your devices has pushed
-  recently. Restore works best right after opening the app on a device that still
-  has the trips.
-- **Privacy trade-off:** the inbox room id and its encryption key are derived
-  from your **email alone**, which is not secret. This is a deliberate choice for
-  one-tap restore: anyone who knows your email could pull your *synced* trips
-  from the relay while it's warm. The relay itself still can't read anything (it
-  only ever sees an opaque room id + ciphertext and never learns your email), and
-  trips you haven't synced are unaffected. If you need synced data to stay
-  end-to-end private, share the `#sync=` join link/QR by hand instead of relying
-  on email restore.
+- **How it works:** whenever you enable or join sync, the app writes an
+  "index" document — `inbox/<hash(email)>` — that lists every synced trip's
+  `fsId`. Any active device keeps it fresh. No setup, no passphrase.
+- **Restoring:** on the new device, log in with the **same email**, then tap
+  **🔄 Restore synced trips** (also offered in the empty state and the
+  Add-to-Home-Screen hint). The app reads the index for your email and re-joins
+  every trip. One tap, done.
+- **Privacy trade-off:** the index document id is derived from your **email
+  alone**, which is not secret, so anyone who knows your email could read your
+  synced trips' ids (and thus those trips) from Firestore. This is a deliberate
+  choice for one-tap restore; trips you haven't synced are never listed. If you
+  need synced data kept off that index, share the `#fs=` join link/QR by hand
+  instead of relying on email restore.
 
 ## Development
 

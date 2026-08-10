@@ -13,8 +13,10 @@ async function makeShareLink(page) {
   await addTransaction(page, { payerName: 'Alice', title: 'Dinner', cost: 10 });
 
   await page.getByRole('button', { name: /Share/ }).click();
-  // Reveal the one-time link/QR export (device sync is the default primary UI).
-  await page.getByRole('button', { name: /One-time link/ }).click();
+  // When cloud sync is configured it's the primary UI and the one-time
+  // link/QR sits behind a toggle; when sync is off the link shows directly.
+  const oneTimeToggle = page.getByRole('button', { name: /One-time link/ });
+  if (await oneTimeToggle.count()) await oneTimeToggle.click();
   const shareInput = page.locator('.modal input[readonly]');
   const url = await shareInput.inputValue();
   expect(url).toContain('#trip=');

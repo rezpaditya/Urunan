@@ -640,16 +640,16 @@ input, select { -webkit-appearance: none; appearance: none; }
     <div class="modal">
       <h3 class="section-title" style="margin-bottom:0.25rem">📤 Share trip</h3>
 
-      <!-- Primary: device sync (when a relay is configured) -->
+      <!-- Primary: cloud sync (when Firebase is configured) -->
       <div v-if="syncAvailable">
         <div class="section-title" style="margin-bottom:0.25rem">🔄 Sync across devices</div>
         <template v-if="!currentTripSynced">
           <p class="field-hint" style="margin-top:0">
             Keep this trip in sync on your other devices — changes flow both ways
-            automatically. The relay only holds an end-to-end encrypted copy briefly
-            to pass it along; it can't read your data and never stores it.
+            automatically. Your trips are stored in your own Cloud Firestore
+            database and synced live across every device you open the link on.
           </p>
-          <button class="btn btn-primary" @click="enableSyncCurrent">Enable device sync</button>
+          <button class="btn btn-primary" @click="enableSyncCurrent">Enable cloud sync</button>
         </template>
         <template v-else>
           <p class="field-hint" style="margin-top:0">
@@ -3065,9 +3065,18 @@ var qrcode = function() {
 <script>
 const { createApp, reactive, computed, ref, watch, nextTick } = Vue;
 
-// Cloud sync relay base URL (see sync-server/). Empty string disables the
-// sync feature entirely and hides all of its UI, so a fork works untouched.
-const SYNC_BASE_URL = 'https://urunan-sync-742180641759.europe-west1.run.app';
+// Firebase config for optional cloud sync (see FIREBASE_SETUP.md). Leave the
+// fields blank to disable cloud sync entirely and hide all of its UI, so a
+// fork — or an offline / file:// load — works untouched. These values are NOT
+// secrets: a web Firebase config is meant to ship in client code, and access
+// is governed by the Firestore security rules (FIREBASE_SETUP.md), not by
+// keeping this object hidden.
+const FIREBASE_CONFIG = {
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  appId: ''
+};
 
 createApp({
   setup() {
@@ -3569,23 +3578,32 @@ createApp({
       return target;
     };
 
-    // ── Cloud sync (optional relay) ────────────────────────────
-    // Opt-in per trip. Enabling picks a random room id + AES-GCM key;
-    // other devices join via a #sync=<room>.<key> link/QR. Each sync
-    // pulls the room, mergeTrip()s it in, then pushes the merged result
-    // back — devices converge while the relay only ever holds gzipped,
-    // encrypted bytes it can't read and never persists. Sync creds live
-    // in a separate localStorage key so they never leak into #trip=
-    // shares or the relayed payload.
-    const syncAvailable = !!SYNC_BASE_URL;
+    // ── Cloud sync (Cloud Firestore) ───────────────────────────
+    // Offline-first: localStorage stays the working store, so the app is
+    // fully usable with no network and from a file:// URL. When a Firebase
+    // project is configured (FIREBASE_CONFIG, near the top of this file),
+    // trips opted into sync are additionally mirrored to Cloud Firestore
+    // under an unguessable document id. Other devices join via a #fs=<id>
+    // link/QR and receive live updates through onSnapshot(); every device
+    // folds remote changes in with the same mergeTrip() CRDT used for the
+    // #trip= share links, so concurrent edits converge instead of clobbering.
+    // Anonymous Auth gives each device a real uid so the Firestore security
+    // rules can require an authenticated caller (see FIREBASE_SETUP.md).
+    //
+    // When FIREBASE_CONFIG is blank, or the SDK can't be fetched (offline,
+    // file://, CDN blocked), sync is simply unavailable and everything runs
+    // locally — a fork, or an offline load, works untouched.
+    const firebaseConfigured = !!(FIREBASE_CONFIG && FIREBASE_CONFIG.projectId);
+    const syncAvailable = ref(firebaseConfigured);  // gates all sync UI
     const syncStates = reactive({});   // tripId -> idle|syncing|synced|error|offline
     const syncInFlight = {};           // tripId -> bool re-entrancy guard
-    const syncDebounce = {};           // tripId -> timeout handle
+    const syncDebounce = {};           // tripId -> debounce timeout handle
+    const fsUnsub = {};                // tripId -> onSnapshot() unsubscribe fn
     const syncUrl = ref('');
     const syncQrSvg = ref('');
 
-    // Reactive so isTripSynced()/currentTripSynced update the UI when a
-    // trip's sync is enabled or disabled. { [tripId]: { room, key, lastSynced } }
+    // Per-trip sync creds live in their own localStorage key so they never
+    // leak into a #trip= share. { [tripId]: { fsId, lastSynced } }
     const syncMeta = reactive((() => {
       try { return JSON.parse(localStorage.getItem('urunan_sync')) || {}; }
       catch (e) { return {}; }
@@ -3595,64 +3613,57 @@ createApp({
     const isTripSynced = tripId => !!tripSyncMeta(tripId);
     const setSyncState = (tripId, s) => { syncStates[String(tripId)] = s; };
 
-    // Crypto — reuse b64u + gzip helpers from the share section.
-    const genRoomId = () => b64uFromBytes(crypto.getRandomValues(new Uint8Array(16)));
-    const genKey = async () => {
-      const k = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 128 }, true, ['encrypt', 'decrypt']);
-      return b64uFromBytes(new Uint8Array(await crypto.subtle.exportKey('raw', k)));
+    // Unguessable document id (a capability): whoever holds the #fs=<id>
+    // link can read/write that one trip — mirrors the old relay room id.
+    const genFsId = () => b64uFromBytes(crypto.getRandomValues(new Uint8Array(16)));
+
+    // ── Firebase SDK, lazily loaded from the CDN ───────────────
+    // Imported on first use so a blank config, an offline start, or a
+    // file:// load never touches the network. A failure just leaves sync
+    // unavailable; initFirebase() is retried on the next attempt.
+    const FB_VER = '10.12.0';
+    let fb = null;         // { fsMod, db, auth } once ready
+    let fbReady = null;    // in-flight init promise (deduped)
+    const initFirebase = () => {
+      if (fbReady) return fbReady;
+      fbReady = (async () => {
+        if (!firebaseConfigured) throw new Error('cloud sync is not configured');
+        const base = 'https://www.gstatic.com/firebasejs/' + FB_VER + '/';
+        const [appMod, authMod, fsMod] = await Promise.all([
+          import(base + 'firebase-app.js'),
+          import(base + 'firebase-auth.js'),
+          import(base + 'firebase-firestore.js'),
+        ]);
+        const app = appMod.initializeApp(FIREBASE_CONFIG);
+        const auth = authMod.getAuth(app);
+        await authMod.signInAnonymously(auth);   // real uid for security rules
+        const db = fsMod.getFirestore(app);
+        fb = { fsMod, db, auth };
+        syncAvailable.value = true;
+        return fb;
+      })().catch(err => { fbReady = null; throw err; });  // allow a later retry
+      return fbReady;
     };
-    const importKey = keyB64u => crypto.subtle.importKey(
-      'raw', bytesFromB64u(keyB64u), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-    // Generic gzip + AES-GCM envelope: [gzFlag(1)][iv(12)][ciphertext].
-    // Used for both trip payloads and the recovery manifest.
-    const sealJson = async (obj, keyB64u) => {
-      const key = await importKey(keyB64u);
-      const raw = new TextEncoder().encode(JSON.stringify(obj));
-      const gz = !!window.CompressionStream;
-      const body = gz ? await gzip(raw) : raw;
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, body));
-      const out = new Uint8Array(1 + iv.length + ct.length);
-      out[0] = gz ? 1 : 0;
-      out.set(iv, 1);
-      out.set(ct, 1 + iv.length);
-      return out;
-    };
-    const openJson = async (bytes, keyB64u) => {
-      const key = await importKey(keyB64u);
-      const gz = bytes[0] === 1;
-      const iv = bytes.slice(1, 13);
-      const ct = bytes.slice(13);
-      const body = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct));
-      const raw = gz ? await gunzip(body) : body;
-      return JSON.parse(new TextDecoder().decode(raw));
-    };
-    const sealTrip = (trip, keyB64u) => sealJson(trip, keyB64u);
-    const openSealed = async (bytes, keyB64u) => {
-      const trip = await openJson(bytes, keyB64u);
-      if (!trip || typeof trip !== 'object' || !trip.id ||
-          !Array.isArray(trip.users) || !Array.isArray(trip.transactions))
-        throw new Error('not a valid trip');
-      return trip;
+    const tripDoc = fsId => fb.fsMod.doc(fb.db, 'trips', fsId);
+
+    // Live subscription: fold every peer write for this trip into our copy.
+    const subscribeTrip = tripId => {
+      const id = String(tripId);
+      const meta = tripSyncMeta(id);
+      if (!meta || !fb || fsUnsub[id]) return;
+      fsUnsub[id] = fb.fsMod.onSnapshot(tripDoc(meta.fsId), snap => {
+        if (!snap.exists() || snap.metadata.hasPendingWrites) return;  // skip our own writes
+        try {
+          const remote = JSON.parse(snap.data().tripJson);
+          if (remote && String(remote.id) === id) { mergeTrip(remote); setSyncState(id, 'synced'); }
+        } catch (e) { /* ignore a malformed doc */ }
+      }, () => setSyncState(id, 'error'));
     };
 
-    // Relay I/O.
-    const relayGet = async room => {
-      const r = await fetch(SYNC_BASE_URL + '/room/' + room);
-      if (r.status === 404) return null;
-      if (!r.ok) throw new Error('relay GET ' + r.status);
-      return new Uint8Array(await r.arrayBuffer());
-    };
-    const relayPut = async (room, bytes) => {
-      const r = await fetch(SYNC_BASE_URL + '/room/' + room, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: bytes
-      });
-      if (!r.ok) throw new Error('relay PUT ' + r.status);
-    };
-
-    // One pull -> merge -> push cycle for a single trip.
+    // One reconcile for a single trip: merge the remote doc into the local
+    // copy, then write the merged trip back. Runs in a transaction so two
+    // devices writing at once converge (mergeTrip is idempotent, so a
+    // transaction retry is safe) instead of overwriting each other.
     const syncNow = async tripId => {
       const meta = tripSyncMeta(tripId);
       if (!meta) return;
@@ -3662,21 +3673,24 @@ createApp({
       syncInFlight[id] = true;
       setSyncState(id, 'syncing');
       try {
-        const remoteBytes = await relayGet(meta.room);
-        if (remoteBytes) {
-          const remote = await openSealed(remoteBytes, meta.key);
-          if (String(remote.id) === id) mergeTrip(remote);
-        }
-        const local = trips.value.find(t => String(t.id) === id);
-        if (!local) { setSyncState(id, 'error'); return; }
-        const fp = JSON.stringify(local);
-        // Push when our state changed, or when the room is empty (TTL
-        // eviction / cold start) so we always re-seed it for the peer.
-        if (!remoteBytes || fp !== meta.lastSynced) {
-          await relayPut(meta.room, await sealTrip(local, meta.key));
-          meta.lastSynced = fp;
-          saveSyncMeta();
-        }
+        await initFirebase();
+        const { fsMod, db } = fb;
+        await fsMod.runTransaction(db, async tx => {
+          const ref = tripDoc(meta.fsId);
+          const snap = await tx.get(ref);
+          if (snap.exists()) {
+            let remote = null;
+            try { remote = JSON.parse(snap.data().tripJson); } catch (e) { /* overwrite corrupt */ }
+            if (remote && String(remote.id) === id) mergeTrip(remote);
+          }
+          const local = trips.value.find(t => String(t.id) === id);
+          if (!local) return;
+          const json = JSON.stringify(local);
+          tx.set(ref, { tripJson: json, updatedAt: Date.now() });
+          meta.lastSynced = json;
+        });
+        saveSyncMeta();
+        subscribeTrip(id);          // start (or keep) receiving peer updates
         setSyncState(id, 'synced');
       } catch (e) {
         setSyncState(id, navigator.onLine ? 'error' : 'offline');
@@ -3685,21 +3699,59 @@ createApp({
       }
     };
 
-    // Debounced sync after a local edit.
+    // Debounced push after a local edit.
     const maybeSync = tripId => {
       if (!isTripSynced(tripId)) return;
       clearTimeout(syncDebounce[String(tripId)]);
       syncDebounce[String(tripId)] = setTimeout(() => syncNow(tripId), 1500);
     };
 
-    // Pull the latest for every synced trip on launch, so a cold start
-    // (e.g. an installed home-screen app that already joined sync) shows
-    // fresh data without having to open each trip first. Fire-and-forget;
-    // each syncNow is re-entrancy guarded and skips no-op pushes.
+    const enableSync = async tripId => {
+      syncMeta[String(tripId)] = { fsId: genFsId(), lastSynced: '' };
+      saveSyncMeta();
+      await syncNow(tripId);      // seed the Firestore doc + subscribe
+      pushInbox();                // publish this trip's creds to the email index
+    };
+
+    const joinSync = async fsId => {
+      await initFirebase();
+      const snap = await fb.fsMod.getDoc(tripDoc(fsId));
+      if (!snap.exists()) throw new Error('shared trip not found (it may have been turned off)');
+      let remote;
+      try { remote = JSON.parse(snap.data().tripJson); }
+      catch (e) { throw new Error('shared trip is unreadable'); }
+      if (!remote || !remote.id || !Array.isArray(remote.users) || !Array.isArray(remote.transactions))
+        throw new Error('not a valid trip');
+      const merged = mergeTrip(remote);
+      syncMeta[String(merged.id)] = { fsId, lastSynced: '' };
+      saveSyncMeta();
+      if (currentUser.value && !merged.users.some(u => u.email === currentUser.value.email)) {
+        if (confirm(`You're not a participant of "${merged.title}" yet. Join as ${currentUser.value.email}?`)) {
+          merged.users.push({ email: currentUser.value.email });
+          saveTrips();
+        }
+      }
+      await syncNow(merged.id);   // push our merged state back + subscribe
+      pushInbox();
+      return merged;
+    };
+
+    const disableSync = tripId => {
+      const id = String(tripId);
+      if (fsUnsub[id]) { try { fsUnsub[id](); } catch (e) {} delete fsUnsub[id]; }
+      delete syncMeta[id];
+      saveSyncMeta();
+      delete syncStates[id];
+    };
+
+    // Refresh the live sync doc for every joined trip on launch, so a cold
+    // start shows fresh data and keeps receiving peer updates.
     const syncAllOnStartup = () => {
-      if (!syncAvailable) return;
-      for (const tripId of Object.keys(syncMeta)) syncNow(tripId);
-      pushInbox();                       // keep the recovery inbox warm
+      if (!firebaseConfigured) return;
+      initFirebase().then(() => {
+        for (const tripId of Object.keys(syncMeta)) { subscribeTrip(tripId); syncNow(tripId); }
+        pushInbox();
+      }).catch(() => { /* offline / blocked: stay fully local */ });
     };
 
     const syncBaseHref = () => location.protocol === 'file:'
@@ -3707,7 +3759,7 @@ createApp({
       : location.origin + location.pathname;
     const syncJoinUrl = tripId => {
       const meta = tripSyncMeta(tripId);
-      return meta ? syncBaseHref() + '#sync=' + meta.room + '.' + meta.key : '';
+      return meta ? syncBaseHref() + '#fs=' + meta.fsId : '';
     };
     const refreshSyncShare = tripId => {
       syncUrl.value = syncJoinUrl(tripId);
@@ -3721,117 +3773,70 @@ createApp({
       }
     };
 
-    // ── Recovery inbox (email-keyed) ───────────────────────────
-    // A per-user "inbox" room on the same relay, addressed entirely by the
-    // user's email. It holds a manifest of every synced trip's creds, so a
-    // blank device — e.g. a freshly installed home-screen PWA that can't see
-    // the browser's localStorage — restores all synced trips by just logging
-    // in with the same email and tapping Restore. No passphrase, no extra
-    // steps. The inbox is established automatically whenever sync is enabled
-    // or joined; devices keep it warm in relay memory (never on disk).
+    // ── Recovery inbox (email-keyed index) ─────────────────────
+    // A per-user index document, addressed by a hash of the user's email,
+    // listing every synced trip's fsId. A blank device — e.g. a freshly
+    // installed home-screen PWA with empty localStorage — restores all
+    // synced trips by logging in with the same email and tapping Restore.
     //
-    // TRADE-OFF: because the inbox room id and key derive from the email
-    // alone (which is not secret), anyone who knows your email could pull your
-    // synced trips from the relay while it's warm. This deliberately drops the
-    // end-to-end privacy of synced data in favour of one-tap restore. The
-    // relay still can't read anything (it never learns the email, only an
-    // opaque room id + ciphertext), and unsynced trips are unaffected.
-    const deriveInbox = async email => {
+    // TRADE-OFF: the index id derives from the email alone (not a secret),
+    // so anyone who knows your email could read your synced trips' ids from
+    // Firestore. This deliberately trades some privacy for one-tap restore;
+    // unsynced trips are never listed. See FIREBASE_SETUP.md.
+    const deriveInboxId = async email => {
       const norm = String(email).trim().toLowerCase();
       const digest = new Uint8Array(await crypto.subtle.digest(
         'SHA-256', new TextEncoder().encode('urunan-inbox|v1|' + norm)));
-      return {
-        room: b64uFromBytes(digest.slice(0, 16)),   // 22-char base64url room id
-        key:  b64uFromBytes(digest.slice(16, 32))   // 128-bit AES-GCM key
-      };
+      return b64uFromBytes(digest.slice(0, 16));   // 22-char base64url id
     };
-    const currentInbox = async () =>
-      currentUser.value ? deriveInbox(currentUser.value.email) : null;
-
-    // The manifest published to the inbox: this device's per-trip sync creds.
+    const currentInboxId = async () =>
+      currentUser.value ? deriveInboxId(currentUser.value.email) : null;
+    const inboxDoc = id => fb.fsMod.doc(fb.db, 'inbox', id);
+    // This device's contribution to the index: { [tripId]: { fsId, title } }.
     const localManifest = () => {
       const out = {};
       for (const [tid, m] of Object.entries(syncMeta)) {
         const t = trips.value.find(t => String(t.id) === String(tid));
-        out[tid] = { room: m.room, key: m.key, title: t ? t.title : '' };
+        out[tid] = { fsId: m.fsId, title: t ? t.title : '' };
       }
-      return { trips: out };
+      return out;
     };
-
-    // Pull → merge → push the inbox manifest. Unions creds across the user's
-    // devices and refreshes the relay TTL so the inbox stays reachable while
-    // any device is active. Best-effort: trip sync works without it.
+    // Merge this device's creds into the shared index (union across devices).
     const pushInbox = async () => {
-      if (!syncAvailable || !navigator.onLine) return;
-      const inb = await currentInbox();
-      if (!inb) return;
+      if (!firebaseConfigured || !navigator.onLine || !currentUser.value) return;
       try {
-        const merged = { trips: {} };
-        const remoteBytes = await relayGet(inb.room);
-        if (remoteBytes) {
-          try {
-            const remote = await openJson(remoteBytes, inb.key);
-            if (remote && remote.trips) Object.assign(merged.trips, remote.trips);
-          } catch (e) { /* corrupt — overwrite with our copy */ }
-        }
-        Object.assign(merged.trips, localManifest().trips);   // local wins on conflict
-        await relayPut(inb.room, await sealJson(merged, inb.key));
-      } catch (e) { /* ignore: recovery is a convenience, not required for sync */ }
+        await initFirebase();
+        const id = await currentInboxId();
+        const { fsMod, db } = fb;
+        await fsMod.runTransaction(db, async tx => {
+          const ref = inboxDoc(id);
+          const snap = await tx.get(ref);
+          const listed = (snap.exists() && snap.data().trips) || {};
+          Object.assign(listed, localManifest());   // local wins on conflict
+          tx.set(ref, { trips: listed, updatedAt: Date.now() });
+        });
+      } catch (e) { /* best-effort: sync itself works without the index */ }
     };
-
-    // Restore every synced trip from the inbox for the logged-in email.
-    // Returns the number of trips found.
+    // Restore every synced trip listed for the logged-in email.
     const restoreFromInbox = async () => {
-      if (!syncAvailable) throw new Error('device sync is disabled in this build');
-      const inb = await currentInbox();
-      if (!inb) throw new Error('set up with your email first');
-      const bytes = await relayGet(inb.room);
-      if (!bytes) throw new Error(
-        'No synced trips found for this email. Open Urunan on a device that still ' +
-        'has them so it can refresh, then try again.');
-      let manifest;
-      try { manifest = await openJson(bytes, inb.key); }
-      catch (e) { manifest = null; }
-      if (!manifest || typeof manifest !== 'object' || !manifest.trips)
-        throw new Error('Could not read your synced trips — the recovery data looks corrupt.');
+      if (!firebaseConfigured) throw new Error('cloud sync is disabled in this build');
+      if (!currentUser.value) throw new Error('set up with your email first');
+      await initFirebase();
+      const snap = await fb.fsMod.getDoc(inboxDoc(await currentInboxId()));
+      if (!snap.exists() || !snap.data().trips)
+        throw new Error(
+          'No synced trips found for this email. Open Urunan on a device that still ' +
+          'has them so it can refresh, then try again.');
+      const listed = snap.data().trips;
       let found = 0;
-      for (const [tid, m] of Object.entries(manifest.trips)) {
-        if (!m || !m.room || !m.key) continue;
-        if (!syncMeta[tid]) syncMeta[tid] = { room: m.room, key: m.key, lastSynced: '' };
+      for (const [tid, m] of Object.entries(listed)) {
+        if (!m || !m.fsId) continue;
+        if (!syncMeta[tid]) syncMeta[tid] = { fsId: m.fsId, lastSynced: '' };
         found++;
       }
       saveSyncMeta();
-      await Promise.all(Object.keys(manifest.trips).map(tid => syncNow(tid)));
+      await Promise.all(Object.keys(listed).map(tid => syncNow(tid)));
       return found;
-    };
-
-    const enableSync = async tripId => {
-      syncMeta[String(tripId)] = { room: genRoomId(), key: await genKey(), lastSynced: '' };
-      saveSyncMeta();
-      await syncNow(tripId);           // initial push seeds the room
-      pushInbox();                     // publish this trip's creds to the email inbox
-    };
-    const joinSync = async (room, key) => {
-      const bytes = await relayGet(room);
-      if (!bytes) throw new Error('sync room is empty or expired');
-      const remote = await openSealed(bytes, key);
-      const merged = mergeTrip(remote);
-      syncMeta[String(merged.id)] = { room, key, lastSynced: '' };
-      saveSyncMeta();
-      if (currentUser.value && !merged.users.some(u => u.email === currentUser.value.email)) {
-        if (confirm(`You're not a participant of "${merged.title}" yet. Join as ${currentUser.value.email}?`)) {
-          merged.users.push({ email: currentUser.value.email });
-          saveTrips();
-        }
-      }
-      await syncNow(merged.id);         // push our merged state back
-      pushInbox();                      // include this trip in the email inbox
-      return merged;
-    };
-    const disableSync = tripId => {
-      delete syncMeta[String(tripId)];
-      saveSyncMeta();
-      delete syncStates[String(tripId)];
     };
 
     // One-tap restore using the logged-in email.
@@ -3865,7 +3870,7 @@ createApp({
     };
     const syncNowCurrent = () => currentTrip.value && syncNow(currentTrip.value.id);
     const disableSyncCurrent = () => {
-      if (!confirm('Turn off sync for this trip on THIS device? Other devices keep their copy; the shared room expires on its own.')) return;
+      if (!confirm('Turn off cloud sync for this trip on THIS device? Other devices keep their copy and the cloud data stays until they turn it off too.')) return;
       disableSync(currentTrip.value.id);
       syncUrl.value = ''; syncQrSvg.value = '';
     };
@@ -3886,13 +3891,13 @@ createApp({
     });
 
     const handleIncomingShare = async () => {
-      // Live-sync join link: #sync=<room>.<key>
-      const sm = location.hash.match(/^#sync=([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]+)$/);
+      // Live-sync join link: #fs=<id>
+      const sm = location.hash.match(/^#fs=([A-Za-z0-9_-]{22})$/);
       if (sm) {
         history.replaceState(null, '', location.pathname + location.search);
-        if (!syncAvailable) { alert('This build has device sync disabled.'); return; }
+        if (!syncAvailable.value) { alert('This build has cloud sync disabled.'); return; }
         try {
-          const trip = await joinSync(sm[1], sm[2]);
+          const trip = await joinSync(sm[1]);
           alert(currentUser.value
             ? `Trip "${trip.title}" synced ✓ — it now stays in sync across your devices.`
             : `Trip "${trip.title}" synced ✓ — set up with the email you were invited as to see it.`);
